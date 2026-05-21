@@ -1,0 +1,16 @@
+﻿;aic
+SetProperty ProductName="Arcadia Core"
+SetProperty Manufacturer="Arcadia"
+SetProperty ARPCOMMENTS="Arcadia Core - A Gaming Universe"
+SetProperty ARPURLINFOABOUT="https://arcadia.local"
+SetProperty ALLUSERS=1
+SetVersion 1.0.0
+SetPackageName ArcadiaCoreSetup -buildname DefaultBuild
+SetOutputLocation -buildname DefaultBuild -path "D:\Projects\Arcadia\installer-output"
+SetAppdir -buildname DefaultBuild -path "[ProgramFilesFolder]Arcadia\Arcadia Core"
+SetShortcutdir -buildname DefaultBuild -path "[ProgramMenuFolder]Arcadia Core"
+SetIcon -icon "D:\Projects\Arcadia\frontend\favicon.ico"
+AddFile APPDIR "D:\Projects\Arcadia\dist\Arcadia\Arcadia.exe"
+AddFolder APPDIR "D:\Projects\Arcadia\dist\Arcadia\_internal" -install_in_parent_folder
+NewShortcut -name "Arcadia Core" -dir SHORTCUTDIR -target "APPDIR\Arcadia.exe" -wkdir APPDIR -desc "Arcadia Core - A Gaming Universe" -icon "D:\Projects\Arcadia\frontend\favicon.ico"
+NewShortcut -name "Arcadia Core" -dir DesktopFolder -target "APPDIR\Arcadia.exe" -wkdir APPDIR -desc "Arcadia Core - A Gaming Universe" -icon "D:\Projects\Arcadia\frontend\favicon.ico"

@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+.env
+cache.json
+data/
+installer-output/
+packaging/advanced-installer/*-cache/
+packaging/advanced-installer/*-SetupFiles/
+*.egg-info/
+dist/
+build/
+.idea/
+.vscode/

@@ -1,0 +1,375 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcadia Core</title>
+    <link rel="icon" href="/favicon.ico">
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Style Sheet -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="dark-mode">
+    <script>
+        (function () {
+            try {
+                var savedTheme = localStorage.getItem('arcadia_theme') || 'dark-mode';
+                var theme = savedTheme === 'light-mode' ? 'light-mode' : 'dark-mode';
+                document.body.classList.remove('dark-mode', 'light-mode');
+                document.body.classList.add(theme);
+            } catch (err) {
+                document.body.classList.add('dark-mode');
+            }
+        })();
+    </script>
+    <!-- Main Application Layout -->
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="app-sidebar">
+            <div class="sidebar-brand">
+                <img class="brand-logo" src="/assets/arcadia-icon.png" alt="Arcadia Core">
+                <span class="brand-name">Arcadia Core <small>A Gaming Universe</small></span>
+                <button class="sidebar-toggle" id="btn-sidebar-toggle" title="Collapse sidebar">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+            <nav class="sidebar-menu">
+                <button class="menu-item active" id="nav-home" title="Home">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Home</span>
+                </button>
+                <button class="menu-item" id="nav-gallery" title="Games Gallery">
+                    <i class="fa-solid fa-gamepad"></i>
+                    <span>Games Gallery</span>
+                </button>
+                <button class="menu-item" id="nav-news" title="News">
+                    <i class="fa-solid fa-newspaper"></i>
+                    <span>News</span>
+                </button>
+                <button class="menu-item" id="nav-wishlist" title="Wishlist & Queue">
+                    <i class="fa-solid fa-star text-pink"></i>
+                    <span>Wishlist & Queue</span>
+                </button>
+                <button class="menu-item" id="nav-downloads" title="Downloads">
+                    <span class="menu-icon-wrap"><i class="fa-solid fa-cloud-arrow-down text-green"></i><span class="nav-download-badge" id="nav-download-badge">0%</span></span>
+                    <span>Downloads</span>
+                </button>
+                <button class="menu-item" id="nav-catalog" title="Offline Catalog">
+                    <i class="fa-solid fa-box-open"></i>
+                    <span>Offline Catalog</span>
+                </button>
+                <button class="menu-item" id="nav-search-history" title="History">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>History</span>
+                </button>
+                <button class="menu-item" id="nav-upcoming" title="Upcoming">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span>Upcoming</span>
+                </button>
+            </nav>
+
+            <!-- Native Hardware Info & Drives Widget -->
+            <div class="sidebar-system-panel">
+                <div class="sys-panel-header"><i class="fa-solid fa-circle-info"></i> PC Specs & Storage</div>
+                <div class="sys-specs-info" id="sys-specs-box">
+                    <div class="spec-line"><i class="fa-solid fa-microchip"></i> <span id="sys-cpu">Scanning CPU...</span></div>
+                    <div class="spec-line"><i class="fa-solid fa-memory"></i> <span id="sys-ram">Scanning RAM...</span></div>
+                    <div class="spec-line"><i class="fa-solid fa-gauge-simple-high"></i> <span id="sys-gpu">Scanning GPU...</span></div>
+                </div>
+                <div class="sys-drives-container" id="sys-drives-box">
+                    <!-- Dynamic drive progress bars injected here -->
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="connection-status" id="ping-status-indicator">
+                    <span class="status-dot offline"></span>
+                    <span class="status-text">Checking server...</span>
+                </div>
+                <button class="footer-action" id="btn-clear-cache" title="Clear Cache">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span>Clear Cache</span>
+                </button>
+            </div>
+            <div class="sidebar-resizer" id="sidebar-resizer" title="Resize sidebar"></div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Section -->
+            <header class="app-header">
+                <div class="search-bar-container">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="search-input" placeholder="Search your gaming universe..." autocomplete="off">
+                    <button class="clear-search" id="btn-clear-search"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="header-filters">
+                    <button class="theme-toggle-btn" id="btn-theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+                        <i class="fa-solid fa-sun"></i>
+                    </button>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-compatibility">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="filter-label"><i class="fa-solid fa-laptop-code text-pink"></i> Compatible Specs Only</span>
+                </div>
+            </header>
+
+            <!-- Scrollable Content -->
+            <div class="content-scrollable">
+                <!-- Home View -->
+                <section id="view-home" class="content-view active">
+                    <!-- Hero Section -->
+                    <div class="hero-section">
+                        <div class="hero-content">
+                            <span class="hero-badge">ARCADIA CORE</span>
+                            <h1>A Gaming Universe</h1>
+                            <p>Browse your catalog, discover official game links, follow live gaming news, and manage high-speed downloads from trusted source pages.</p>
+                        </div>
+                    </div>
+
+                    <!-- Popular Row Container -->
+                    <section class="section-container" id="popular-section">
+                        <h2 class="section-title"><i class="fa-solid fa-fire text-pink"></i> Most Popular This Week</h2>
+                        <div class="popular-row" id="popular-container">
+                            <!-- Popular cards injected here by JS -->
+                            <div class="skeleton-loader-popular"></div>
+                        </div>
+                    </section>
+
+                    <!-- Main Grid Layout: Latest Repacks & Upcoming Sidebar -->
+                    <div class="dashboard-grid">
+                        <!-- Latest Repacks Column -->
+                        <section class="grid-main">
+                            <h2 class="section-title"><i class="fa-solid fa-clock text-green"></i> Latest Games</h2>
+                            <div class="repacks-grid" id="latest-repacks-container">
+                                <!-- Cards injected here -->
+                            </div>
+                            <div class="pagination-controls">
+                                <button id="btn-prev-page" class="btn btn-secondary" disabled>Previous Page</button>
+                                <span class="page-indicator">Page <span id="current-page">1</span></span>
+                                <button id="btn-next-page" class="btn btn-secondary">Next Page</button>
+                            </div>
+                        </section>
+
+                        <!-- Upcoming Repacks Column -->
+                        <aside class="grid-sidebar">
+                            <div class="sidebar-card">
+                                <h2 class="sidebar-title"><i class="fa-solid fa-hourglass-half text-pink"></i> Upcoming Games</h2>
+                                <div class="upcoming-list" id="upcoming-container">
+                                    <!-- Upcoming items injected here -->
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </section>
+
+                <!-- Games Gallery View -->
+                <section id="view-gallery" class="content-view">
+                    <div class="catalog-header-row">
+                        <div>
+                            <h2>Games Gallery</h2>
+                            <p>Browse discovered games with artwork, source links, and hardware badges.</p>
+                        </div>
+                        <div class="offline-actions">
+                            <button class="btn btn-secondary" id="btn-gallery-refresh"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="gallery-toolbar">
+                        <div class="az-filter" id="gallery-letter-filter"></div>
+                        <div class="gallery-index-panel" id="gallery-index-panel">
+                            <div><strong id="gallery-index-message">Catalog index idle</strong><small id="gallery-index-count">0 games indexed</small></div>
+                            <div class="gallery-index-progress"><span id="gallery-index-progress-fill"></span></div>
+                        </div>
+                    </div>
+                    <div class="repacks-grid" id="gallery-container"></div>
+                    <div class="pagination-controls" id="gallery-pagination">
+                        <button class="btn btn-secondary" id="btn-gallery-prev"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                        <span class="page-indicator">Page <span id="gallery-current-page">1</span> of <span id="gallery-total-pages">1</span></span>
+                        <button class="btn btn-secondary" id="btn-gallery-next">Next <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </section>
+
+                <!-- News View -->
+                <section id="view-news" class="content-view">
+                    <div class="news-header-row">
+                        <div>
+                            <h2>Live Gaming News</h2>
+                            <p>Fresh headlines, official updates, release calendars, and events.</p>
+                        </div>
+                        <div class="news-actions">
+                            <span id="news-updated-at">Not loaded yet</span>
+                            <button class="btn btn-secondary" id="btn-news-refresh"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="news-tabs" id="news-tabs">
+                        <button class="news-tab active" data-news-filter="All">All</button>
+                        <button class="news-tab" data-news-filter="Official">Official</button>
+                        <button class="news-tab" data-news-filter="PC">PC</button>
+                        <button class="news-tab" data-news-filter="Hardware">Hardware</button>
+                        <button class="news-tab" data-news-filter="Releases">Releases</button>
+                        <button class="news-tab" data-news-filter="Events">Events</button>
+                    </div>
+                    <div class="news-grid" id="news-container"></div>
+                    <section class="section-container">
+                        <h2 class="section-title"><i class="fa-solid fa-calendar-days text-pink"></i> Upcoming Games</h2>
+                        <div class="source-link-list" id="upcoming-games-news"></div>
+                    </section>
+                    <section class="section-container">
+                        <h2 class="section-title"><i class="fa-solid fa-tower-broadcast text-green"></i> Upcoming Events</h2>
+                        <div class="source-link-list" id="upcoming-events-news"></div>
+                    </section>
+                </section>
+
+                <!-- Search Results View -->
+                <section id="view-search" class="content-view">
+                    <div class="search-header">
+                        <h2>Search Results for: <span id="search-query-highlight" class="text-pink">""</span></h2>
+                        <button class="btn btn-secondary" id="btn-back-home"><i class="fa-solid fa-arrow-left"></i> Back to Home</button>
+                    </div>
+                    <div class="repacks-grid" id="search-results-container">
+                        <!-- Search results injected here -->
+                    </div>
+                    <div class="pagination-controls" id="search-pagination">
+                        <button id="btn-search-prev" class="btn btn-secondary" disabled>Previous Page</button>
+                        <span class="page-indicator">Page <span id="search-current-page">1</span></span>
+                        <button id="btn-search-next" class="btn btn-secondary">Next Page</button>
+                    </div>
+                </section>
+
+                <!-- Wishlist & Queue View -->
+                <section id="view-wishlist" class="content-view">
+                    <div class="wishlist-header-row">
+                        <div class="wishlist-title-box">
+                            <h2>My Wishlist & Download Queue</h2>
+                            <p>Manage queued torrents and offline games list.</p>
+                        </div>
+                        <div class="savings-dashboard" id="wishlist-savings-panel">
+                            <!-- Savings details rendered dynamically -->
+                        </div>
+                    </div>
+                    <div class="repacks-grid" id="wishlist-container">
+                        <!-- Starred cards injected here -->
+                    </div>
+                </section>
+
+                <!-- Built-in Downloads View -->
+                <section id="view-downloads" class="content-view">
+                    <div class="downloads-header-row">
+                        <div>
+                            <h2>Built-in Downloader</h2>
+                            <p>Manage active torrents, selected files, priorities, and offline-ready downloads.</p>
+                        </div>
+                        <div class="downloads-actions">
+                            <button class="btn btn-secondary" id="btn-downloads-pause-all" title="Pause all downloads">
+                                <i class="fa-solid fa-pause"></i>
+                            </button>
+                            <button class="btn btn-secondary" id="btn-downloads-resume-all" title="Resume all downloads">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                            <button class="btn btn-secondary" id="btn-downloads-clear-completed" title="Clear completed downloads">
+                                <i class="fa-solid fa-broom"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="downloads-settings-panel">
+                        <label>
+                            <span>Active</span>
+                            <input type="number" id="download-max-active" min="1" max="16" value="3">
+                        </label>
+                        <label>
+                            <span>Save Path</span>
+                            <div class="path-input-row">
+                                <input type="text" id="download-default-path" placeholder="Default download folder">
+                                <button class="icon-btn path-browse-btn" id="btn-browse-download-path" title="Browse download folder" type="button">
+                                    <i class="fa-solid fa-folder-open"></i>
+                                </button>
+                            </div>
+                        </label>
+                        <label>
+                            <span>Down Limit</span>
+                            <input type="text" id="download-limit" placeholder="0 = unlimited">
+                        </label>
+                        <label>
+                            <span>Up Limit</span>
+                            <input type="text" id="upload-limit" placeholder="0 = unlimited">
+                        </label>
+                        <button class="btn btn-primary" id="btn-save-download-settings">
+                            <i class="fa-solid fa-floppy-disk"></i> Save
+                        </button>
+                    </div>
+
+                    <div class="downloads-engine-alert" id="downloads-engine-alert"></div>
+                    <div class="downloads-list" id="downloads-list">
+                        <div class="empty-state">
+                            <i class="fa-solid fa-cloud-arrow-down"></i>
+                            <p>No downloads yet.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Offline Catalog View -->
+                <section id="view-catalog" class="content-view">
+                    <div class="catalog-header-row">
+                        <div>
+                            <h2>My Offline Catalog</h2>
+                            <p>Saved games, local media, notes, filters, and storage planning.</p>
+                        </div>
+                        <div class="offline-actions">
+                            <button class="btn btn-secondary" id="btn-export-offline"><i class="fa-solid fa-file-export"></i> Export</button>
+                            <button class="btn btn-secondary" id="btn-prune-media"><i class="fa-solid fa-scissors"></i> Prune Media</button>
+                        </div>
+                    </div>
+                    <div class="offline-stats-grid" id="offline-stats-grid"></div>
+                    <div class="repacks-grid" id="catalog-container">
+                        <!-- Offline cached cards injected here -->
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Game Details Modal (Glassmorphism Overlay) -->
+    <div class="modal-overlay" id="game-modal">
+        <div class="modal-container">
+            <button class="modal-close" id="btn-modal-close"><i class="fa-solid fa-xmark"></i></button>
+            <div class="modal-content" id="modal-content-body">
+                <!-- Content injected by components.js -->
+            </div>
+        </div>
+    </div>
+
+    <div class="confirm-overlay" id="confirm-modal">
+        <div class="confirm-dialog">
+            <div class="confirm-icon" id="confirm-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="confirm-copy">
+                <h3 id="confirm-title">Confirm action</h3>
+                <p id="confirm-message">Are you sure?</p>
+            </div>
+            <div class="confirm-actions">
+                <button class="btn btn-secondary" id="btn-confirm-cancel">Cancel</button>
+                <button class="btn btn-primary" id="btn-confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- JavaScript Files -->
+    <script src="/js/api.js"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
+
+
+
+
