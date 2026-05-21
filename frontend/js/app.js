@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!elements.galleryIndexPanel || !status.message) return;
         const indexed = status.indexed || state.galleryGames.length || 0;
         const cached = status.cached || 0;
-        if (status.running || status.updated) {
+        if (status.running) {
             elements.galleryIndexMessage.textContent = status.running ? status.message : 'Artwork cache updated';
             elements.galleryIndexCount.textContent = `${indexed} games indexed · artwork cached ${cached}/${indexed} · current batch ${status.processed || 0}/${status.total || 0}`;
             if (elements.galleryIndexProgressFill && indexed) {
@@ -540,10 +540,17 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const missingVisibleSlugs = games
                 .filter(game => game.slug && !game.thumbnail && !game.cover)
-                .map(game => game.slug);
-            const status = await API.startLibraryArtwork(144, missingVisibleSlugs);
-            renderGalleryArtworkStatus(status);
-            if (!state.galleryArtworkPoller) state.galleryArtworkPoller = setInterval(pollGalleryArtwork, 3500);
+                .map(game => game.slug)
+                .slice(0, 24);
+            if (!missingVisibleSlugs.length) return;
+            const data = await API.hydrateVisibleArtwork(missingVisibleSlugs, missingVisibleSlugs.length);
+            const artwork = data.artwork || {};
+            if (!Object.keys(artwork).length) return;
+            state.galleryGames = state.galleryGames.map(game => (
+                artwork[game.slug] ? { ...game, thumbnail: artwork[game.slug] } : game
+            ));
+            renderCards(elements.galleryContainer, state.galleryGames, 'No games match this gallery page yet.');
+            renderGalleryIndexStatus({ total: state.galleryGames.length, message: 'Gallery ready', done: true, artwork_cached: Object.keys(artwork).length });
         } catch {
             // Leave fallback images in place if artwork loading fails.
         }

@@ -45,6 +45,14 @@ const API = {
         });
     },
 
+    async hydrateVisibleArtwork(slugs = [], limit = 24) {
+        return this._request('/api/library/artwork/visible', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slugs, limit })
+        });
+    },
+
     async hydrateLibraryRequirements(slugs = [], limit = 24) {
         return this._request('/api/library/requirements', {
             method: 'POST',

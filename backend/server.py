@@ -119,6 +119,20 @@ def api_library_artwork():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/library/artwork/visible", methods=["POST"])
+def api_library_visible_artwork():
+    """Fetch artwork for the current visible Gallery page."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        slugs = payload.get("slugs") or []
+        if not isinstance(slugs, list):
+            slugs = []
+        limit = int(payload.get("limit") or 24)
+        return jsonify(scraper.hydrate_visible_artwork(slugs, limit=limit))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/library/requirements", methods=["POST"])
 def api_library_requirements():
     """Fetch accurate requirements for visible gallery games."""

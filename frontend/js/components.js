@@ -156,7 +156,7 @@ const Components = {
             <div class="card-img-wrapper">
                 ${badgeHTML}
                 ${sourceHTML}
-                ${hasArtwork ? `<img src="${this.escape(coverImg)}" alt="${safeTitle}" loading="lazy" onerror="this.closest('.card-img-wrapper').innerHTML='<div class=&quot;artwork-loading&quot;><i class=&quot;fa-solid fa-spinner fa-spin&quot;></i><span>Artwork loading</span></div>'">` : `
+                ${hasArtwork ? `<img src="${this.escape(coverImg)}" alt="${safeTitle}" loading="lazy" onerror="this.src='${this.fallbackCover}'">` : `
                     <div class="artwork-loading">
                         <i class="fa-solid fa-spinner fa-spin"></i>
                         <span>Artwork loading</span>

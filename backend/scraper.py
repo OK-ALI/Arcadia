@@ -156,6 +156,24 @@ def _cache_gallery_image(slug: str, url: str) -> str:
         return url
 
 
+def _is_cached_media(url: str) -> bool:
+    return str(url or "").startswith("/api/offline/media/")
+
+
+def _get_page_cover_only(slug: str) -> str:
+    """Fetch only the page artwork without doing full detail/requirements work."""
+    if not slug:
+        return ""
+    try:
+        soup = _fetch(f"{BASE_URL}{slug}/")
+        content = soup.select_one(".entry-content")
+        if content:
+            return _best_page_image(soup, content)
+    except Exception:
+        return ""
+    return ""
+
+
 def _set_index_progress(**kwargs):
     with _index_lock:
         _index_job.update(kwargs)
@@ -296,11 +314,11 @@ def _hydrate_cover_batch(limit: int = 36, slugs: list[str] | None = None):
     requested = {str(slug).strip() for slug in (slugs or []) if str(slug).strip()}
     visible_pending = [
         game for game in index
-        if game.get("slug") in requested and not game.get("thumbnail")
+        if game.get("slug") in requested and not _is_cached_media(game.get("thumbnail") or game.get("cover"))
     ]
     other_pending = [
         game for game in index
-        if game.get("slug") and not game.get("thumbnail") and game.get("slug") not in requested
+        if game.get("slug") and not _is_cached_media(game.get("thumbnail") or game.get("cover")) and game.get("slug") not in requested
     ]
     if requested:
         by_slug = {game.get("slug"): game for game in index}
@@ -319,8 +337,7 @@ def _hydrate_cover_batch(limit: int = 36, slugs: list[str] | None = None):
     by_slug = {game.get("slug"): game for game in index}
     def _load(game):
         try:
-            details = get_game_details(game["slug"])
-            cover = (details or {}).get("cover") or (details or {}).get("thumbnail") or ""
+            cover = _get_page_cover_only(game["slug"])
             if cover:
                 return game["slug"], _cache_gallery_image(game["slug"], cover)
         except Exception:
@@ -347,6 +364,43 @@ def start_cover_hydration(limit: int = 36, slugs: list[str] | None = None) -> di
         _cover_job.update({"running": True, "processed": 0, "total": 0, "updated": 0, "message": "Artwork loading queued", "error": "", "updated_at": time.time()})
     threading.Thread(target=_hydrate_cover_batch, kwargs={"limit": limit, "slugs": slugs or []}, daemon=True).start()
     return get_cover_hydration_status()
+
+
+def hydrate_visible_artwork(slugs: list[str], limit: int = 24) -> dict:
+    """Fetch artwork for the currently visible gallery page and return it."""
+    clean_slugs = []
+    for slug in slugs or []:
+        value = str(slug or "").strip()
+        if value and value not in clean_slugs:
+            clean_slugs.append(value)
+    clean_slugs = clean_slugs[: max(1, min(36, int(limit or 24)))]
+    if not clean_slugs:
+        return {"artwork": {}}
+
+    index = _get_cached_az_index()
+    by_slug = {game.get("slug"): game for game in index if game.get("slug")}
+    results: dict[str, str] = {}
+
+    def _load(slug: str) -> tuple[str, str]:
+        game = by_slug.get(slug) or {}
+        cached = game.get("thumbnail") or game.get("cover")
+        if cached:
+            if _is_cached_media(cached):
+                return slug, cached
+            return slug, _cache_gallery_image(slug, cached)
+        cover = _get_page_cover_only(slug)
+        return slug, _cache_gallery_image(slug, cover) if cover else ""
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(clean_slugs))) as executor:
+        for slug, cover in executor.map(_load, clean_slugs):
+            if cover:
+                results[slug] = cover
+                if slug in by_slug:
+                    by_slug[slug]["thumbnail"] = cover
+
+    if results and index:
+        cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
+    return {"artwork": results}
 
 def get_library_index_status() -> dict:
     cached_progress = cache.get(AZ_INDEX_PROGRESS_KEY) or {}
