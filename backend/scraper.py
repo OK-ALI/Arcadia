@@ -70,13 +70,17 @@ def _normalize_match_title(title: str) -> str:
 
 
 def _title_bucket(title: str) -> str:
-    cleaned = re.sub(r"^(the|a|an)\s+", "", (title or "").strip(), flags=re.IGNORECASE)
-    for ch in cleaned.lower():
-        if "a" <= ch <= "z":
-            return ch
-        if ch.isdigit():
-            return "0-9"
-    return "#"
+    cleaned = (title or "").strip()
+    if not cleaned:
+        return "0-9"
+    ch = cleaned[0].lower()
+    if "a" <= ch <= "z":
+        return ch
+    return "0-9"
+
+
+def _game_bucket(game: dict) -> str:
+    return _title_bucket(game.get("title", ""))
 
 
 def _az_page_url(page: int) -> str:
@@ -189,7 +193,23 @@ def _get_cached_az_index() -> list:
 
 
 def _sort_key(game: dict) -> str:
-    return re.sub(r"^(the|a|an)\s+", "", game.get("title", "").lower())
+    return (game.get("title", "") or "").lower()
+
+
+def _normalized_index(index: list[dict]) -> list[dict]:
+    changed = False
+    normalized = []
+    for game in index:
+        item = dict(game)
+        bucket = _game_bucket(item)
+        if item.get("letter") != bucket:
+            item["letter"] = bucket
+            changed = True
+        normalized.append(item)
+    normalized.sort(key=_sort_key)
+    if changed:
+        cache.set(AZ_INDEX_CACHE_KEY, normalized, AZ_INDEX_TTL)
+    return normalized
 
 
 def _merge_games(indexed: list[dict], seen: set[str], games: list[dict]) -> int:
@@ -204,12 +224,14 @@ def _merge_games(indexed: list[dict], seen: set[str], games: list[dict]) -> int:
             continue
         if key in by_key:
             existing = by_key[key]
-            for field in ("title", "url", "letter", "source", "category", "date", "summary"):
+            for field in ("title", "url", "source", "category", "date", "summary"):
                 if game.get(field):
                     existing[field] = game[field]
+            existing["letter"] = _game_bucket(existing)
             if not existing.get("thumbnail") and game.get("thumbnail"):
                 existing["thumbnail"] = game["thumbnail"]
             continue
+        game["letter"] = _game_bucket(game)
         indexed.append(game)
         by_key[key] = game
         seen.add(key)
@@ -299,7 +321,7 @@ def _set_cover_progress(**kwargs):
 
 def get_cover_hydration_status() -> dict:
     cached = cache.get(COVER_HYDRATE_PROGRESS_KEY) or {}
-    index = _get_cached_az_index()
+    index = _normalized_index(_get_cached_az_index())
     cached_count = len([game for game in index if game.get("thumbnail") or game.get("cover")])
     with _cover_lock:
         status = {**cached, **_cover_job}
@@ -310,7 +332,7 @@ def get_cover_hydration_status() -> dict:
 
 
 def _hydrate_cover_batch(limit: int = 36, slugs: list[str] | None = None):
-    index = _get_cached_az_index()
+    index = _normalized_index(_get_cached_az_index())
     requested = {str(slug).strip() for slug in (slugs or []) if str(slug).strip()}
     visible_pending = [
         game for game in index
@@ -404,13 +426,13 @@ def hydrate_visible_artwork(slugs: list[str], limit: int = 24) -> dict:
 
 def get_library_index_status() -> dict:
     cached_progress = cache.get(AZ_INDEX_PROGRESS_KEY) or {}
-    cached_index = _get_cached_az_index()
+    cached_index = _normalized_index(_get_cached_az_index())
     with _index_lock:
         status = {**cached_progress, **_index_job}
     status["total"] = max(int(status.get("total") or 0), len(cached_index))
     status["cached"] = bool(cached_index)
     status["artwork_cached"] = len([g for g in cached_index if g.get("thumbnail") or g.get("cover")])
-    status["letters"] = sorted({g.get("letter") or _title_bucket(g.get("title", "")) for g in cached_index})
+    status["letters"] = sorted({_game_bucket(g) for g in cached_index})
     return status
 
 def _image_url(img) -> str:
@@ -769,7 +791,7 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
             target_count = page * page_size
             while source_page <= 12 and len(collected) < target_count and has_next:
                 direct = _get_az_page(source_page)
-                page_games = [g for g in direct.get("games", []) if (g.get("letter") or _title_bucket(g.get("title", ""))) == letter]
+                page_games = [g for g in direct.get("games", []) if _game_bucket(g) == letter]
                 collected.extend(page_games)
                 has_next = bool(direct.get("has_next"))
                 source_page += 1
@@ -790,7 +812,7 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
             "artwork": get_cover_hydration_status(),
         }
 
-    filtered = index if letter == "all" else [g for g in index if (g.get("letter") or _title_bucket(g.get("title", ""))) == letter]
+    filtered = index if letter == "all" else [g for g in index if _game_bucket(g) == letter]
     total = len(filtered)
     if letter == "all" and total < page * page_size:
         direct = _get_az_page(page)
