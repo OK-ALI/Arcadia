@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         galleryIndexerPoller: null,
         galleryArtworkPoller: null,
         galleryRequirementsLoading: false,
+        galleryRequestId: 0,
         preparePoller: null,
         lastDownloadData: null
     };
@@ -384,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state.compatibilityOnly) return games;
         return games.filter(game => {
             const comp = Components.getCompatibility(game.requirements);
-            return comp && ['pass', 'minimum'].includes(comp.status);
+            return comp && (['pass', 'minimum'].includes(comp.status) || game.requirements?.pending);
         });
     }
 
@@ -536,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function startGalleryArtworkHydration(games = []) {
+    async function startGalleryArtworkHydration(games = [], requestId = state.galleryRequestId) {
         try {
             const missingVisibleSlugs = games
                 .filter(game => game.slug && !game.thumbnail && !game.cover)
@@ -544,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .slice(0, 24);
             if (!missingVisibleSlugs.length) return;
             const data = await API.hydrateVisibleArtwork(missingVisibleSlugs, missingVisibleSlugs.length);
+            if (requestId !== state.galleryRequestId) return;
             const artwork = data.artwork || {};
             if (!Object.keys(artwork).length) return;
             state.galleryGames = state.galleryGames.map(game => (
@@ -556,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function hydrateVisibleGalleryRequirements(games = []) {
+    async function hydrateVisibleGalleryRequirements(games = [], requestId = state.galleryRequestId) {
         if (state.galleryRequirementsLoading) return;
         const slugs = games
             .filter(game => game.slug && game.requirements?.pending)
@@ -566,6 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.galleryRequirementsLoading = true;
         try {
             const data = await API.hydrateLibraryRequirements(slugs, slugs.length);
+            if (requestId !== state.galleryRequestId) return;
             const requirements = data.requirements || {};
             state.galleryGames = state.galleryGames.map(game => (
                 requirements[game.slug] ? { ...game, requirements: requirements[game.slug] } : game
@@ -593,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadGallery(force = false) {
+        const requestId = ++state.galleryRequestId;
         renderGalleryLetters();
         showSkeleton(elements.galleryContainer, 12);
         try {
@@ -607,8 +611,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderGalleryIndexStatus(data.indexing || {});
             renderGalleryArtworkStatus(data.artwork || {});
             renderCards(elements.galleryContainer, state.galleryGames, 'No games match this gallery page yet. The index may still be loading.');
-            hydrateVisibleGalleryRequirements(state.galleryGames);
-            if (state.galleryGames.some(game => !game.thumbnail && !game.cover)) startGalleryArtworkHydration(state.galleryGames);
+            hydrateVisibleGalleryRequirements(state.galleryGames, requestId);
+            if (state.galleryGames.some(game => !game.thumbnail && !game.cover)) startGalleryArtworkHydration(state.galleryGames, requestId);
             if (elements.galleryCurrentPage) elements.galleryCurrentPage.textContent = state.galleryPage;
             if (elements.galleryTotalPages) elements.galleryTotalPages.textContent = state.galleryTotalPages;
             if (elements.btnGalleryPrev) elements.btnGalleryPrev.disabled = !data.has_prev;
