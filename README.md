@@ -15,6 +15,10 @@ available:
 - Repository: https://github.com/OK-ALI/Arcadia
 - Installer filename: `ArcadiaCoreSetup.exe`
 
+## Documentation
+
+- [Arcadia Core Documentation](docs/Arcadia_Core_Documentation.md)
+
 ## Features
 
 - Arcadia Core branding with the subtitle **A Gaming Universe**.
