@@ -1,48 +1,143 @@
-﻿# Arcadia Core
+# Arcadia Core
 
 **A Gaming Universe**
 
-Arcadia Core is a desktop gaming hub built with Python Flask, pywebview, HTML,
-CSS, and vanilla JavaScript. It brings together game discovery, offline catalog
-storage, hardware compatibility checks, live gaming news, official game links,
-and a built-in libtorrent download manager.
+Arcadia Core is a Windows desktop gaming hub built with Python, Flask,
+pywebview, HTML, CSS, and vanilla JavaScript. It focuses on fast game discovery,
+live gaming news, local catalog caching, hardware compatibility checks, and a
+built-in torrent download experience powered by libtorrent.
 
-## Highlights
+## Download
 
-- Games Gallery with local artwork fallback from the Arcadia icon.
-- Offline catalog with cached artwork, source metadata, and storage stats.
-- Live News tab with trusted gaming news, official updates, upcoming games, and events.
-- Official game/publisher links when they can be resolved with confidence.
-- RAM and GPU-aware compatibility badges.
-- Built-in downloads with libtorrent, selectable files, speed limits, live speed, ETA, peers, and seeders.
-- High-speed defaults with no artificial download cap unless the user sets one.
+The Windows installer is published from GitHub Releases when a packaged build is
+available:
+
+- Repository: https://github.com/OK-ALI/Arcadia
+- Installer filename: `ArcadiaCoreSetup.exe`
+
+## Features
+
+- Arcadia Core branding with the subtitle **A Gaming Universe**.
+- Dark mode by default with a persistent light theme toggle.
+- Expandable and resizable sidebar with collapsed icon mode.
+- Games Gallery with A-Z browsing, pagination, progressive loading, and cached
+  artwork.
+- Gallery cards render quickly first, then hydrate artwork and specs in the
+  background.
+- Offline catalog support with cached game metadata and media.
+- Live News tab with gaming articles, upcoming releases, and event links.
+- Source links are shown as attribution, while Arcadia branding stays separate.
+- Official game, publisher, and Steam links are shown only when confidence is
+  strong enough.
+- Dynamic Windows system detection for CPU, RAM, GPU list, and VRAM.
+- Compatibility badges based on available game requirements:
+  - Compatible
+  - Min Specs
+  - Below Specs
+  - Unknown Specs
+  - Checking Specs
+- Compatible Specs Only filter hides pending and unknown entries.
+- Built-in libtorrent download manager with selectable files, queue priority,
+  pause/resume, retry, folder opening, magnet copy, live speed, seeders, ETA,
+  and progress.
+- Custom download folder selection through a native Windows folder picker.
+- Resume data is saved so downloads can continue from previous progress after
+  relaunch when torrent state is available.
+- Tray mode keeps Arcadia available in the background until **Quit Arcadia** is
+  selected.
+- Single-instance guard prevents multiple tray/background sessions.
+- Tray status can show download progress and speed.
+- Windows notification support for completed downloads.
+- Battery safety guard pauses active downloads when a laptop battery drops below
+  20 percent while unplugged.
+- Confirmation dialogs protect remove and delete-files actions.
+- Inno Setup packaging for a Windows installer.
+
+## Screens And Sections
+
+- Home
+- Games Gallery
+- News
+- Wishlist & Queue
+- Downloads
+- Offline Catalog
+- History
+- Game details modal
+- Prepare download modal
+
+## Download Behavior
+
+Arcadia Core does not apply an artificial speed cap by default. Real speed still
+depends on seeders, trackers, ISP limits, disk speed, Wi-Fi quality, and system
+conditions. Users can set custom download and upload limits from the Downloads
+settings panel.
 
 ## Source Attribution
 
-The app can use public source pages for catalog/download metadata. Source names
-may appear as attribution inside details or links, but Arcadia Core branding is
-independent.
+Arcadia Core can use public game/source pages for catalog metadata, artwork,
+download links, and source attribution. Source names may appear in details or
+links, but they are not used as Arcadia Core branding.
+
+## Privacy And Local Data
+
+Runtime cache, download state, resume files, offline catalog files, and cached
+artwork are stored locally under the app data folder. These files are excluded
+from the Git repository.
 
 ## Development
 
+Create a virtual environment and install dependencies:
+
 ```powershell
-python -m venv venv
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
-.\venv\Scripts\python.exe app.py
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Run the desktop app:
+
+```powershell
+.\.venv\Scripts\python.exe app.py
 ```
 
 If the workspace folder is renamed, recreate the virtual environment. Windows
-virtualenv launchers often embed paths from the original directory.
+virtualenv launchers can embed paths from the original directory.
 
 ## Build
 
+Build the PyInstaller distribution:
+
 ```powershell
-.\venv\Scripts\pyinstaller.exe Arcadia.spec
+powershell -ExecutionPolicy Bypass -File packaging\build-dist.ps1
 ```
 
-The expected workspace path after rename is:
+Build the Inno Setup installer:
+
+```powershell
+& "C:\Program Files\Inno Setup 7\ISCC.exe" packaging\inno\Arcadia.iss
+```
+
+The installer output is:
+
+```text
+installer-output\ArcadiaCoreSetup.exe
+```
+
+## Recommended Release Flow
+
+1. Run frontend and backend checks.
+2. Build the PyInstaller distribution.
+3. Build the Inno Setup installer.
+4. Create a GitHub release tag.
+5. Upload `ArcadiaCoreSetup.exe` as the release asset.
+
+## Notes
+
+- This project targets Windows.
+- The current workspace path used during development is:
 
 ```text
 D:\Projects\Arcadia
 ```
 
+- Inno Setup preview builds may warn that they are not intended for production
+  installers. Use a stable Inno Setup release for public production releases.
