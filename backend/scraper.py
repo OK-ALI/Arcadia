@@ -212,6 +212,46 @@ def _normalized_index(index: list[dict]) -> list[dict]:
     return normalized
 
 
+def _bucket_rank(bucket: str) -> int:
+    if bucket == "0-9":
+        return 0
+    if bucket and len(bucket) == 1 and "a" <= bucket <= "z":
+        return ord(bucket) - ord("a") + 1
+    return 0
+
+
+def _collect_letter_from_source(letter: str, page: int, page_size: int, max_pages: int = 140) -> dict:
+    """Cold-cache fallback that scans enough A-Z source pages for any letter."""
+    collected = []
+    has_next = True
+    source_page = 1
+    target_count = page * page_size
+    target_rank = _bucket_rank(letter)
+    passed_target = False
+
+    while source_page <= max_pages and has_next:
+        direct = _get_az_page(source_page)
+        games = direct.get("games", [])
+        for game in games:
+            bucket = _game_bucket(game)
+            if bucket == letter:
+                collected.append(game)
+            elif collected and _bucket_rank(bucket) > target_rank:
+                passed_target = True
+        has_next = bool(direct.get("has_next"))
+        if len(collected) >= target_count and (passed_target or not has_next):
+            break
+        if collected and passed_target:
+            break
+        source_page += 1
+
+    return {
+        "games": collected,
+        "has_next_source": has_next and not passed_target,
+        "source_page": source_page,
+    }
+
+
 def _merge_games(indexed: list[dict], seen: set[str], games: list[dict]) -> int:
     added = 0
     by_key = {
@@ -780,21 +820,16 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
     index = _get_cached_az_index()
     progress = get_library_index_status()
     if not index:
+        progress = start_library_index(force=False)
         collected = []
         if letter == "all":
             direct = _get_az_page(page)
             collected = direct.get("games", [])
             has_next = bool(direct.get("has_next"))
         else:
-            has_next = True
-            source_page = 1
-            target_count = page * page_size
-            while source_page <= 12 and len(collected) < target_count and has_next:
-                direct = _get_az_page(source_page)
-                page_games = [g for g in direct.get("games", []) if _game_bucket(g) == letter]
-                collected.extend(page_games)
-                has_next = bool(direct.get("has_next"))
-                source_page += 1
+            direct = _collect_letter_from_source(letter, page, page_size)
+            collected = direct.get("games", [])
+            has_next = bool(direct.get("has_next_source"))
         total = len(collected)
         start = (page - 1) * page_size
         games = collected[start:start + page_size]
@@ -808,7 +843,7 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
             "games": games,
             "has_next": bool(has_next or start + page_size < total),
             "has_prev": page > 1,
-            "indexing": get_library_index_status(),
+            "indexing": progress,
             "artwork": get_cover_hydration_status(),
         }
 
