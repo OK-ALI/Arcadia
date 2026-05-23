@@ -1,4 +1,4 @@
-﻿"""
+"""
 server.py â€” Flask application with REST API endpoints.
 Serves the frontend and provides scraping API.
 """
@@ -13,14 +13,14 @@ from backend import scraper, cache as app_cache, system, news
 from backend.downloader import manager as downloader_manager
 from backend.offline_library import library as offline_library
 
-_focus_callback: Callable[[], bool] | None = None
+_focus_callback: Callable[[str | None], bool] | None = None
 
 
-def set_focus_callback(callback: Callable[[], bool] | None):
+def set_focus_callback(callback: Callable[[str | None], bool] | None):
     global _focus_callback
     _focus_callback = callback
 
-# â”€â”€ Flask App Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Flask App Setup ──────────────────────────────────────────────
 app = Flask(
     __name__,
     static_folder=os.path.join(FRONTEND_DIR),
@@ -28,7 +28,7 @@ app = Flask(
 )
 
 
-# â”€â”€ Frontend Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Frontend Routes ──────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -40,14 +40,85 @@ def index():
 def api_app_focus():
     """Restore the existing Arcadia window when a second launch occurs."""
     try:
+        payload = request.get_json(silent=True) or {}
+        url = payload.get("url")
         if _focus_callback:
-            return jsonify({"success": bool(_focus_callback())})
+            return jsonify({"success": bool(_focus_callback(url))})
         return jsonify({"success": False, "message": "Focus callback not ready"}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-# â”€â”€ API Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+def get_extension_dir():
+    import sys
+    if getattr(sys, 'frozen', False):
+        # Compiled app directory (where Arcadia.exe is located)
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Development environment root
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_dir, "arcadia-extension")
+
+
+@app.route("/api/app/open-extension-folder", methods=["POST"])
+def api_open_extension_folder():
+    """Open the local unpacked extension folder in explorer for developer mode."""
+    try:
+        path = get_extension_dir()
+        if os.path.exists(path):
+            os.startfile(path)
+            return jsonify({"success": True})
+        return jsonify({"error": f"Extension folder not found at: {path}"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/app/download-extension", methods=["GET"])
+@app.route("/api/app/download-extension/arcadia-extension.zip", methods=["GET"])
+def api_download_extension():
+    """Zip the arcadia-extension folder on the fly and serve it as a download."""
+    import zipfile
+    import io
+    try:
+        ext_dir = get_extension_dir()
+        if not os.path.exists(ext_dir):
+            return jsonify({"error": f"Extension folder not found at: {ext_dir}"}), 404
+
+        memory_file = io.BytesIO()
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(ext_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # Use relative path in the zip
+                    arcname = os.path.relpath(file_path, ext_dir)
+                    zipf.write(file_path, arcname)
+
+        memory_file.seek(0)
+        return send_file(
+            memory_file,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name="arcadia-extension.zip"
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/app/open-external-url", methods=["POST"])
+def api_open_external_url():
+    """Open a URL in the user's default system browser."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        url = payload.get("url")
+        if url:
+            webbrowser.open(url)
+            return jsonify({"success": True})
+        return jsonify({"error": "URL parameter is required"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── API Routes ───────────────────────────────────────────────
 
 @app.route("/api/search")
 def api_search():
@@ -150,7 +221,8 @@ def api_library_requirements():
 def api_game(slug):
     """Get full details for a specific game."""
     try:
-        details = scraper.get_game_details(slug)
+        force = request.args.get("refresh") in {"1", "true", "yes"}
+        details = scraper.get_game_details(slug, force_refresh=force)
         if details is None:
             return jsonify({"error": "Game not found"}), 404
         return jsonify(details)
@@ -281,6 +353,30 @@ def api_download_prepare_status(prepared_id):
         return jsonify(downloader_manager.prepare_status(prepared_id))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/torrent/add-url", methods=["POST"])
+def api_torrent_add_url():
+    """Add a direct HTTP/HTTPS download link or prepare a magnet/torrent link."""
+    try:
+        payload = request.get_json(force=True)
+        url = payload.get("url", "").strip()
+        save_path = payload.get("save_path")
+        slug = payload.get("slug")
+        
+        if not url:
+            return jsonify({"error": "URL parameter is required."}), 400
+            
+        if url.startswith("magnet:") or url.endswith(".torrent") or ".torrent" in url:
+            slug = slug or "direct-torrent"
+            title = "Torrent Download"
+            prepared = downloader_manager.prepare_download(slug=slug, title=title, magnet=url, save_path=save_path)
+            return jsonify({"success": True, "type": "torrent", "prepared": prepared})
+        else:
+            item = downloader_manager.add_http_download(url, save_path=save_path, slug=slug)
+            return jsonify({"success": True, "type": "http", "download": item})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/torrent/confirm", methods=["POST"])
 def api_torrent_confirm():

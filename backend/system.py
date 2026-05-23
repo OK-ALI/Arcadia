@@ -91,33 +91,69 @@ def _gpu_score(name: str) -> int:
 
 
 def _get_gpu_records() -> list[dict]:
-    """Query GPUs with PowerShell CIM first, then WMIC for older systems."""
+    """Query GPUs using Registry first for accurate 64-bit VRAM, then fallback to CIM/WMIC."""
     records = []
-    try:
-        out = subprocess.check_output(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM | ConvertTo-Json -Compress",
-            ],
-            stderr=subprocess.DEVNULL,
-            timeout=7,
-        )
-        text = out.decode("utf-8", errors="ignore").strip()
-        if text:
-            import json
-            parsed = json.loads(text)
-            if isinstance(parsed, dict):
-                parsed = [parsed]
-            for item in parsed or []:
-                name = str(item.get("Name") or "").strip()
-                if not name:
-                    continue
-                ram = int(item.get("AdapterRAM") or 0)
-                records.append({"name": name, "vram_gb": round(ram / (1024 ** 3), 1) if ram > 0 else 0})
-    except Exception:
-        records = []
+    if sys.platform == "win32":
+        try:
+            path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as key:
+                for i in range(100):
+                    try:
+                        subkey_name = winreg.EnumKey(key, i)
+                        if not subkey_name.isdigit() or len(subkey_name) != 4:
+                            continue
+                        with winreg.OpenKey(key, subkey_name) as subkey:
+                            try:
+                                desc, _ = winreg.QueryValueEx(subkey, "DriverDesc")
+                                desc = str(desc).strip()
+                            except FileNotFoundError:
+                                continue
+                            if not desc:
+                                continue
+                            vram = 0
+                            for v_name in ("HardwareInformation.qwMemorySize", "HardwareInformation.MemorySize"):
+                                try:
+                                    v, _ = winreg.QueryValueEx(subkey, v_name)
+                                    if v:
+                                        vram = int(v)
+                                        break
+                                except FileNotFoundError:
+                                    pass
+                            records.append({
+                                "name": desc,
+                                "vram_gb": round(vram / (1024 ** 3), 1) if vram > 0 else 0
+                            })
+                    except OSError:
+                        break
+        except Exception:
+            pass
+
+    if not records:
+        try:
+            out = subprocess.check_output(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM | ConvertTo-Json -Compress",
+                ],
+                stderr=subprocess.DEVNULL,
+                timeout=7,
+            )
+            text = out.decode("utf-8", errors="ignore").strip()
+            if text:
+                import json
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    parsed = [parsed]
+                for item in parsed or []:
+                    name = str(item.get("Name") or "").strip()
+                    if not name:
+                        continue
+                    ram = int(item.get("AdapterRAM") or 0)
+                    records.append({"name": name, "vram_gb": round(ram / (1024 ** 3), 1) if ram > 0 else 0})
+        except Exception:
+            records = []
 
     if records:
         return sorted(records, key=lambda item: _gpu_score(item.get("name", "")), reverse=True)

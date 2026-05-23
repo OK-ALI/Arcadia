@@ -1,4 +1,4 @@
-﻿/**
+/**
  * api.js - API client for Arcadia Core.
  */
 
@@ -69,8 +69,8 @@ const API = {
         });
     },
 
-    async getGameDetails(slug) {
-        return this._request(`/api/game/${slug}`);
+    async getGameDetails(slug, refresh = false) {
+        return this._request(`/api/game/${slug}${refresh ? '?refresh=1' : ''}`);
     },
 
     async triggerDownload(slug) {
@@ -87,6 +87,26 @@ const API = {
 
     async getPrepareStatus(preparedId) {
         return this._request(`/api/download/prepare-status/${encodeURIComponent(preparedId)}`);
+    },
+
+    async addDownloadUrl(url, savePath = '', slug = '') {
+        return this._request('/api/torrent/add-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, save_path: savePath, slug })
+        });
+    },
+
+    async openExtensionFolder() {
+        return this._request('/api/app/open-extension-folder', { method: 'POST' });
+    },
+
+    async openExternalUrl(url) {
+        return this._request('/api/app/open-external-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
     },
 
     async confirmDownload(payload) {

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Arcadia Core desktop application entry point.
 
 Launches a Flask server in a background thread and opens a native desktop
@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import ctypes
+import re
 
 import requests
 import webview
@@ -61,7 +62,7 @@ class TrayController:
         ]
         for path in candidates:
             if os.path.exists(path):
-                return Image.open(path).convert("RGBA").resize((64, 64))
+                return Image.open(path).convert("RGBA").resize((64, 64), Image.Resampling.LANCZOS)
         image = Image.new("RGBA", (64, 64), (10, 10, 12, 255))
         draw = ImageDraw.Draw(image)
         draw.rounded_rectangle((8, 8, 56, 56), radius=12, fill=(255, 50, 31, 255))
@@ -170,9 +171,10 @@ class NativeBridge:
             return ""
 
 
-def focus_existing_instance(timeout: float = 1.5) -> bool:
+def focus_existing_instance(url: str = None, timeout: float = 1.5) -> bool:
     try:
-        response = requests.post(f"http://{HOST}:{PORT}/api/app/focus", timeout=timeout)
+        payload = {"url": url}
+        response = requests.post(f"http://{HOST}:{PORT}/api/app/focus", json=payload, timeout=timeout)
         return response.ok and bool((response.json() or {}).get("success"))
     except Exception:
         return False
@@ -197,6 +199,80 @@ def request_safe_exit(signum=None, frame=None):
     raise SystemExit(0)
 
 
+from ctypes.wintypes import HANDLE, LPVOID
+
+# Define types for 64-bit Windows ctypes safety to prevent pointer truncation crashes
+_OpenClipboard = ctypes.windll.user32.OpenClipboard
+_OpenClipboard.argtypes = [HANDLE]
+_OpenClipboard.restype = ctypes.c_bool
+
+_CloseClipboard = ctypes.windll.user32.CloseClipboard
+_CloseClipboard.argtypes = []
+_CloseClipboard.restype = ctypes.c_bool
+
+_GetClipboardData = ctypes.windll.user32.GetClipboardData
+_GetClipboardData.argtypes = [ctypes.c_uint]
+_GetClipboardData.restype = HANDLE
+
+_GlobalLock = ctypes.windll.kernel32.GlobalLock
+_GlobalLock.argtypes = [HANDLE]
+_GlobalLock.restype = LPVOID
+
+_GlobalUnlock = ctypes.windll.kernel32.GlobalUnlock
+_GlobalUnlock.argtypes = [HANDLE]
+_GlobalUnlock.restype = ctypes.c_bool
+
+def get_clipboard_text() -> str | None:
+    try:
+        if not _OpenClipboard(None):
+            return None
+        try:
+            h_data = _GetClipboardData(13) # CF_UNICODETEXT
+            if not h_data:
+                return None
+            p_data = _GlobalLock(h_data)
+            if not p_data:
+                return None
+            try:
+                text = ctypes.c_wchar_p(p_data).value
+                return text
+            finally:
+                _GlobalUnlock(h_data)
+        finally:
+            _CloseClipboard()
+    except Exception:
+        return None
+
+def clipboard_monitor_loop(window):
+    last_text = ""
+    # Matches common archive formats, installers, magnets, or direct hosting providers
+    direct_match = re.compile(
+        r'(\.(zip|rar|7z|tar|gz|exe|msi|iso|dmg|pkg|torrent)(\?.*)?$)|'
+        r'(^magnet:\?)|'
+        r'(https?://(datanodes\.to|gofile\.io|buzzheavier\.com|pixeldrain\.com|krakenfiles\.com|doodrive\.com)/[a-zA-Z0-9_\-/]+)',
+        re.IGNORECASE
+    )
+    while True:
+        try:
+            if not window:
+                break
+            text = get_clipboard_text()
+            if text:
+                text = text.strip()
+                if text != last_text:
+                    last_text = text
+                    if text.startswith("http://") or text.startswith("https://") or text.startswith("magnet:"):
+                        if direct_match.search(text):
+                            safe_url = text.replace('"', '\\"').replace("'", "\\'")
+                            try:
+                                window.evaluate_js(f"if (window.onClipboardLinkDetected) window.onClipboardLinkDetected('{safe_url}');")
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+        time.sleep(1.5)
+
+
 def wait_for_server(host: str, port: int, timeout: int = 10):
     """Wait until the Flask server is ready to accept connections."""
     url = f"http://{host}:{port}/"
@@ -208,6 +284,58 @@ def wait_for_server(host: str, port: int, timeout: int = 10):
         except requests.ConnectionError:
             time.sleep(0.1)
     return False
+import urllib.parse
+
+def register_custom_protocol():
+    if sys.platform != "win32":
+        return
+    import winreg
+    try:
+        if getattr(sys, 'frozen', False):
+            exe_path = sys.executable
+            cmd = f'"{exe_path}" "%1"'
+        else:
+            python_exe = sys.executable
+            script_path = os.path.abspath(__file__)
+            cmd = f'"{python_exe}" "{script_path}" "%1"'
+            
+        key_path = r"Software\Classes\arcadia"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "URL:Arcadia Protocol")
+            winreg.SetValueEx(key, "URL Protocol", 0, winreg.REG_SZ, "")
+            
+        command_key_path = r"Software\Classes\arcadia\shell\open\command"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, command_key_path) as cmd_key:
+            winreg.SetValueEx(cmd_key, "", 0, winreg.REG_SZ, cmd)
+            
+        print("Successfully registered arcadia:// custom protocol.")
+    except Exception as e:
+        print(f"Failed to register custom protocol: {e}")
+
+
+def parse_protocol_url(args: list[str]) -> str | None:
+    for arg in args:
+        if arg.startswith("arcadia://"):
+            match = re.search(r"[?&]url=([^&]+)", arg)
+            if match:
+                return urllib.parse.unquote(match.group(1))
+            url = arg[len("arcadia://"):]
+            if url.startswith("add-url?url="):
+                url = url[len("add-url?url="):]
+                return urllib.parse.unquote(url)
+            return url
+    return None
+
+
+def handle_focus(url: str = None) -> bool:
+    res = tray.show_window()
+    if url and tray.window:
+        safe_url = url.replace('"', '\\"').replace("'", "\\'")
+        try:
+            tray.window.evaluate_js(f"if (window.onCapturedLinkDetected) window.onCapturedLinkDetected('{safe_url}');")
+        except Exception as e:
+            print(f"Error evaluating JS on focus: {e}")
+    return res
 
 
 def main():
@@ -215,14 +343,18 @@ def main():
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, request_safe_exit)
 
-    if focus_existing_instance():
+    protocol_url = parse_protocol_url(sys.argv)
+
+    if focus_existing_instance(protocol_url):
         return
     if not acquire_single_instance():
         for _ in range(10):
-            if focus_existing_instance(timeout=0.5):
+            if focus_existing_instance(protocol_url, timeout=0.5):
                 return
             time.sleep(0.25)
         return
+
+    register_custom_protocol()
 
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
@@ -232,26 +364,43 @@ def main():
         return
 
     print(f"Server running at http://{HOST}:{PORT}")
-    set_focus_callback(lambda: tray.show_window())
+    set_focus_callback(handle_focus)
 
-    window = webview.create_window(
-        title=WINDOW_TITLE,
-        url=f"http://{HOST}:{PORT}",
-        width=WINDOW_WIDTH,
-        height=WINDOW_HEIGHT,
-        min_size=(900, 600),
-        text_select=True,
-        js_api=NativeBridge(),
-    )
-    window.events.closing += tray.close_to_tray
-    tray.start(window)
     try:
+        window = webview.create_window(
+            title=WINDOW_TITLE,
+            url=f"http://{HOST}:{PORT}",
+            width=WINDOW_WIDTH,
+            height=WINDOW_HEIGHT,
+            min_size=(900, 600),
+            text_select=True,
+            js_api=NativeBridge(),
+        )
+        window.events.closing += tray.close_to_tray
+        tray.start(window)
+
+        clipboard_thread = threading.Thread(target=clipboard_monitor_loop, args=(window,), daemon=True)
+        clipboard_thread.start()
+
+        if protocol_url:
+            def trigger_cold_boot():
+                time.sleep(2.5)
+                handle_focus(protocol_url)
+            threading.Thread(target=trigger_cold_boot, daemon=True).start()
+
         webview.start()
     except KeyboardInterrupt:
         request_safe_exit()
     except SystemExit:
         raise
-    except Exception:
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            with open("crash.log", "w") as f:
+                traceback.print_exc(file=f)
+        except Exception:
+            pass
         tray.safe_shutdown()
         raise
     finally:

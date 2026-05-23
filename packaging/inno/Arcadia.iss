@@ -1,4 +1,4 @@
-﻿#define MyAppName "Arcadia Core"
+#define MyAppName "Arcadia Core"
 #define MyAppExeName "Arcadia.exe"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Arcadia"
@@ -43,3 +43,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\arcadia"; ValueType: string; ValueName: ""; ValueData: "URL:Arcadia Protocol"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\arcadia"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\arcadia\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey

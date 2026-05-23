@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -304,6 +304,40 @@
                         <button class="btn btn-primary" id="btn-save-download-settings">
                             <i class="fa-solid fa-floppy-disk"></i> Save
                         </button>
+                    </div>
+
+                    <div class="direct-download-panel">
+                        <input type="text" id="direct-download-url" placeholder="Paste Direct Download Link (HTTP/HTTPS) or Magnet Link here..." autocomplete="off">
+                        <button class="btn btn-primary" id="btn-submit-direct-download">
+                            <i class="fa-solid fa-plus"></i> Add Download
+                        </button>
+                    </div>
+
+                    <div class="browser-extensions-panel">
+                        <div class="panel-info">
+                            <i class="fa-solid fa-puzzle-piece text-pink"></i>
+                            <div>
+                                <h4>Browser Integrations</h4>
+                                <p>Enable automatic download capturing in Edge and Chrome.</p>
+                            </div>
+                        </div>
+                        <div class="extension-buttons">
+                            <a href="/api/app/download-extension" class="btn btn-primary" id="btn-download-extension-zip" download="arcadia-extension.zip" title="Download extension as a ZIP file to load manually">
+                                <i class="fa-solid fa-file-zipper"></i> Download ZIP
+                            </a>
+                            <button class="btn btn-secondary" id="btn-extension-instructions" title="How to load the extension manually in your browser">
+                                <i class="fa-solid fa-circle-question"></i> How to Install
+                            </button>
+                            <a href="https://microsoftedge.microsoft.com/addons/detail/YOUR_EDGE_EXTENSION_ID" class="btn btn-secondary" target="_blank" id="btn-install-extension-edge">
+                                <i class="fa-brands fa-edge"></i> Edge Store
+                            </a>
+                            <a href="https://chromewebstore.google.com/detail/YOUR_CHROME_EXTENSION_ID" class="btn btn-secondary" target="_blank" id="btn-install-extension-chrome">
+                                <i class="fa-brands fa-chrome"></i> Chrome Store
+                            </a>
+                            <button class="btn btn-secondary" id="btn-open-local-extension" title="Open Local Extension Folder to load unpacked">
+                                <i class="fa-solid fa-folder-open"></i> Load Local (Developer)
+                            </button>
+                        </div>
                     </div>
 
                     <div class="downloads-engine-alert" id="downloads-engine-alert"></div>

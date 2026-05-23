@@ -388,6 +388,43 @@ const Components = {
             </div>
         ` : '';
 
+        let updatesHTML = '';
+        if (game.updates && (game.updates.instructions || (game.updates.links && game.updates.links.length > 0))) {
+            const instructionsHTML = game.updates.instructions ? `
+                <div class="updates-instructions">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>${this.escape(game.updates.instructions)}</span>
+                </div>
+            ` : '';
+            const linksHTML = game.updates.links && game.updates.links.length > 0 ? `
+                <div class="updates-links-list">
+                    ${game.updates.links.map(l => `
+                        <a href="${this.escape(l.url)}" class="btn-update-link" target="_blank" title="${this.escape(l.name)}">
+                            <i class="fa-solid fa-cloud-arrow-down"></i>
+                            <span>${this.escape(l.name)}</span>
+                        </a>
+                    `).join('')}
+                </div>
+            ` : '<div class="updates-empty">No update packages listed. Check source site.</div>';
+
+            updatesHTML = `
+                <div class="detail-section updates-section">
+                    <div class="section-header-row">
+                        <h3>Game Updates (Direct Links)</h3>
+                        <span class="badge badge-update"><i class="fa-solid fa-bell"></i> Updates Available</span>
+                    </div>
+                    ${instructionsHTML}
+                    <div class="updates-box">
+                        ${linksHTML}
+                    </div>
+                    <div class="updates-notice">
+                        <i class="fa-solid fa-triangle-exclamation text-orange"></i>
+                        <span>These updates point to external hosts. Open the link to solve the captcha/timer, copy the final download link, and paste it into the <b>Paste Direct Link</b> bar on the Downloads tab to download in-app.</span>
+                    </div>
+                </div>
+            `;
+        }
+
         return `
             <div class="modal-grid">
                 <div>
@@ -410,6 +447,7 @@ const Components = {
                         <button id="modal-download-btn" class="btn ${downloadBtnClass}" ${downloadBtnDisabled}><i class="fa-solid fa-magnet"></i> ${downloadBtnText}</button>
                         <button id="modal-wishlist-btn" class="btn btn-star-wishlist ${isWishlisted ? 'active' : ''}"><i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-star"></i> ${isWishlisted ? 'Wishlisted' : 'Add to Wishlist'}</button>
                         <button id="modal-save-offline-btn" class="btn btn-secondary"><i class="fa-solid fa-box-archive"></i> Save Offline</button>
+                        <button id="modal-check-updates-btn" class="btn btn-secondary"><i class="fa-solid fa-rotate"></i> Check for Updates</button>
                         ${game.url ? `<a href="${this.escape(game.url)}" class="btn btn-secondary" target="_blank"><i class="fa-solid fa-database"></i> Open Source Page</a>` : ''}
                     </div>
                     ${officialLinks ? `<div class="detail-section"><h3>Official Links</h3><div class="mirrors-list">${officialLinks}</div></div>` : ''}
@@ -418,6 +456,7 @@ const Components = {
                     ${game.description ? `<div class="detail-section"><h3>Game Description</h3><p class="detail-text">${this.escape(game.description)}</p></div>` : ''}
                     ${game.file_list ? `<div class="detail-section"><h3>Selectable Files Listed By Source</h3><div class="file-list-box">${this.escape(game.file_list)}</div></div>` : ''}
                     ${featuresHTML}
+                    ${updatesHTML}
                     ${torrentMirrorsHTML}
                     ${directMirrorsHTML}
                     ${screenshotsHTML}

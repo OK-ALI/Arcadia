@@ -1,4 +1,4 @@
-﻿/**
+/**
  * app.js - Main frontend orchestration for Arcadia Core.
  */
 
@@ -32,7 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
         galleryRequirementsLoading: false,
         galleryRequestId: 0,
         preparePoller: null,
-        lastDownloadData: null
+        lastDownloadData: null,
+        downloadSettingsDirty: false
     };
 
     window.userSpecs = {
@@ -42,6 +43,79 @@ document.addEventListener('DOMContentLoaded', () => {
         gpu_vram_gb: 0,
         gpu: 'Scanning GPU...',
         drives: []
+    };
+
+    window.onClipboardLinkDetected = async function(url) {
+        if (state.activeClipboardUrl === url) return;
+        state.activeClipboardUrl = url;
+
+        // Truncate URL for dialog
+        const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
+        
+        // Show confirm dialog
+        const accepted = await showConfirmDialog({
+            title: 'Download Link Detected',
+            message: `A downloadable link was detected in your clipboard:\n\n${displayUrl}\n\nDo you want to download this link inside Arcadia?`,
+            confirmText: 'Download'
+        });
+
+        state.activeClipboardUrl = null;
+
+        if (accepted) {
+            try {
+                const res = await API.addDownloadUrl(url);
+                if (res.success) {
+                    if (res.type === 'torrent') {
+                        renderPrepareDownloadModal(res.prepared);
+                    } else {
+                        Components.showToast('Direct download task added.', 'success');
+                        await loadDownloads();
+                        switchView('downloads');
+                    }
+                } else {
+                    Components.showToast(res.error || 'Failed to add download task.', 'error');
+                }
+            } catch (err) {
+                Components.showToast(`Failed to add download task: ${err.message}`, 'error');
+            }
+        }
+    };
+
+    window.onCapturedLinkDetected = async function(url) {
+        if (state.activeCapturedUrl === url) return;
+        state.activeCapturedUrl = url;
+
+        switchView('downloads');
+
+        // Truncate URL for dialog
+        const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
+        
+        // Show confirm dialog
+        const accepted = await showConfirmDialog({
+            title: 'Captured Browser Download',
+            message: `A download link was captured from your browser:\n\n${displayUrl}\n\nDo you want to add this download to Arcadia?`,
+            confirmText: 'Download'
+        });
+
+        state.activeCapturedUrl = null;
+
+        if (accepted) {
+            try {
+                const res = await API.addDownloadUrl(url);
+                if (res.success) {
+                    if (res.type === 'torrent') {
+                        renderPrepareDownloadModal(res.prepared);
+                    } else {
+                        Components.showToast('Direct download task added.', 'success');
+                        await loadDownloads();
+                    }
+                } else {
+                    Components.showToast(res.error || 'Failed to add download task.', 'error');
+                }
+            } catch (err) {
+                Components.showToast(`Failed to add download task: ${err.message}`, 'error');
+            }
+        }
     };
 
     const elements = {
@@ -93,6 +167,13 @@ document.addEventListener('DOMContentLoaded', () => {
         wishlistSavings: document.getElementById('wishlist-savings-panel'),
         downloadsList: document.getElementById('downloads-list'),
         downloadsEngineAlert: document.getElementById('downloads-engine-alert'),
+        directDownloadUrl: document.getElementById('direct-download-url'),
+        btnSubmitDirectDownload: document.getElementById('btn-submit-direct-download'),
+        btnOpenLocalExtension: document.getElementById('btn-open-local-extension'),
+        btnExtensionInstructions: document.getElementById('btn-extension-instructions'),
+        btnDownloadExtensionZip: document.getElementById('btn-download-extension-zip'),
+        btnInstallExtensionEdge: document.getElementById('btn-install-extension-edge'),
+        btnInstallExtensionChrome: document.getElementById('btn-install-extension-chrome'),
         btnDownloadsPauseAll: document.getElementById('btn-downloads-pause-all'),
         btnDownloadsResumeAll: document.getElementById('btn-downloads-resume-all'),
         btnDownloadsClearCompleted: document.getElementById('btn-downloads-clear-completed'),
@@ -664,13 +745,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 15 * 60 * 1000);
     }
 
-    async function openGameDetails(slug) {
+    async function openGameDetails(slug, forceRefresh = false) {
         elements.modalContentBody.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading game details...</p></div>';
         elements.gameModal.classList.add('active');
         try {
             let game = null;
             try {
-                game = await API.getGameDetails(slug);
+                game = await API.getGameDetails(slug, forceRefresh);
             } catch {
                 const wlGames = readJSON(STORAGE.wishlistGames, []);
                 game = wlGames.find(g => g.slug === slug);
@@ -709,6 +790,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fa-solid fa-box-archive"></i> Save Offline';
+                }
+            });
+
+            document.getElementById('modal-check-updates-btn')?.addEventListener('click', async e => {
+                const btn = e.currentTarget;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+                try {
+                    await openGameDetails(slug, true);
+                    Components.showToast('Checked for updates. Catalog is up to date.', 'success');
+                } catch (err) {
+                    Components.showToast(`Check for updates failed: ${err.message}`, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
                 }
             });
 
@@ -966,10 +1062,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDownloadsFromData(data) {
         const engine = data.engine || {};
         const settings = data.settings || {};
-        elements.downloadMaxActive.value = settings.max_active_downloads || 3;
-        elements.downloadDefaultPath.value = settings.default_save_path || '';
-        elements.downloadLimit.value = settings.download_limit || '0';
-        elements.uploadLimit.value = settings.upload_limit || '0';
+        if (!state.downloadSettingsDirty) {
+            elements.downloadMaxActive.value = settings.max_active_downloads || 3;
+            elements.downloadDefaultPath.value = settings.default_save_path || '';
+            elements.downloadLimit.value = settings.download_limit || '0';
+            elements.uploadLimit.value = settings.upload_limit || '0';
+        }
         elements.downloadsEngineAlert.style.display = 'flex';
         elements.downloadsEngineAlert.innerHTML = engine.available
             ? `<i class="fa-solid fa-gauge-high"></i><span>Built-in downloader ready. Speed is uncapped unless limits are set; real speed depends on seeders, ISP, and disk.</span>`
@@ -1307,6 +1405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     download_limit: elements.downloadLimit.value.trim() || '0',
                     upload_limit: elements.uploadLimit.value.trim() || '0'
                 });
+                state.downloadSettingsDirty = false;
                 Components.showToast('Downloader settings saved.', 'success');
                 await loadDownloads();
             } catch (err) {
@@ -1315,7 +1414,146 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         elements.btnBrowseDownloadPath?.addEventListener('click', async () => {
             const folder = await chooseFolder(elements.downloadDefaultPath.value);
-            if (folder) elements.downloadDefaultPath.value = folder;
+            if (folder) {
+                elements.downloadDefaultPath.value = folder;
+                state.downloadSettingsDirty = true;
+            }
+        });
+        elements.btnSubmitDirectDownload?.addEventListener('click', async () => {
+            const url = elements.directDownloadUrl.value.trim();
+            if (!url) {
+                Components.showToast('Please enter a valid link.', 'error');
+                return;
+            }
+            elements.btnSubmitDirectDownload.disabled = true;
+            elements.btnSubmitDirectDownload.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+            try {
+                const res = await API.addDownloadUrl(url);
+                if (res.success) {
+                    elements.directDownloadUrl.value = '';
+                    if (res.type === 'torrent') {
+                        renderPrepareDownloadModal(res.prepared);
+                    } else {
+                        Components.showToast('Direct download task added.', 'success');
+                        await loadDownloads();
+                    }
+                } else {
+                    Components.showToast(res.error || 'Failed to add download task.', 'error');
+                }
+            } catch (err) {
+                Components.showToast(`Failed to add download task: ${err.message}`, 'error');
+            } finally {
+                elements.btnSubmitDirectDownload.disabled = false;
+                elements.btnSubmitDirectDownload.innerHTML = '<i class="fa-solid fa-plus"></i> Add Download';
+            }
+        });
+        elements.btnOpenLocalExtension?.addEventListener('click', async () => {
+            try {
+                await API.openExtensionFolder();
+                Components.showToast('Opened local extension folder in Explorer.', 'success');
+            } catch (err) {
+                Components.showToast(`Failed to open extension folder: ${err.message}`, 'error');
+            }
+        });
+        elements.btnDownloadExtensionZip?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const downloadUrl = window.location.origin + '/api/app/download-extension/arcadia-extension.zip';
+            try {
+                const res = await API.addDownloadUrl(downloadUrl);
+                if (res.success) {
+                    Components.showToast('Extension download task added to queue.', 'success');
+                    await loadDownloads();
+                } else {
+                    Components.showToast(res.error || 'Failed to add download task.', 'error');
+                }
+            } catch (err) {
+                Components.showToast(`Failed to download extension: ${err.message}`, 'error');
+            }
+        });
+        elements.btnInstallExtensionEdge?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const url = elements.btnInstallExtensionEdge.getAttribute('href');
+            try {
+                await API.openExternalUrl(url);
+            } catch (err) {
+                Components.showToast(`Failed to open Edge Store link: ${err.message}`, 'error');
+            }
+        });
+        elements.btnInstallExtensionChrome?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const url = elements.btnInstallExtensionChrome.getAttribute('href');
+            try {
+                await API.openExternalUrl(url);
+            } catch (err) {
+                Components.showToast(`Failed to open Chrome Store link: ${err.message}`, 'error');
+            }
+        });
+        ['download-max-active', 'download-default-path', 'download-limit', 'upload-limit'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', () => {
+                state.downloadSettingsDirty = true;
+            });
+        });
+        elements.btnExtensionInstructions?.addEventListener('click', () => {
+            elements.modalContentBody.innerHTML = `
+                <div class="extension-instructions-modal" style="padding: 24px; max-width: 750px; margin: 0 auto;">
+                    <h2 style="margin-bottom: 16px; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-puzzle-piece text-pink"></i> Browser Extension Installation
+                    </h2>
+                    <p style="margin-bottom: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                        The Arcadia Download Interceptor extension automatically captures downloads from direct links (like Datanodes, GoFile, Pixeldrain, etc.) and routes them straight to Arcadia Core, saving you from manual copying and pasting.
+                    </p>
+                    
+                    <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
+                        <a href="/api/app/download-extension" class="btn btn-primary" style="height: 40px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;" download="arcadia-extension.zip">
+                            <i class="fa-solid fa-file-zipper"></i> Download ZIP
+                        </a>
+                        <button class="btn btn-secondary" id="btn-instructions-open-folder" style="height: 40px;">
+                            <i class="fa-solid fa-folder-open"></i> Open Source Folder
+                        </button>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                        <!-- Chrome Instructions -->
+                        <div style="background: rgba(255, 255, 255, 0.015); border: 1px solid var(--border-simple); border-radius: 8px; padding: 18px;">
+                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-primary); border-bottom: 1px solid var(--border-simple); padding-bottom: 8px;">
+                                <i class="fa-brands fa-chrome" style="color: #3b82f6;"></i> Google Chrome
+                            </h3>
+                            <ol style="margin-left: 18px; font-size: 12px; color: var(--text-muted); line-height: 1.8; display: flex; flex-direction: column; gap: 6px;">
+                                <li>Download and extract the <strong>arcadia-extension.zip</strong> file (or use the source folder).</li>
+                                <li>Open Google Chrome and navigate to <code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: #f0f0f5; font-family: monospace;">chrome://extensions</code></li>
+                                <li>Turn on the <strong>Developer mode</strong> toggle in the top-right corner.</li>
+                                <li>Click <strong>Load unpacked</strong> in the top-left.</li>
+                                <li>Select the extracted <strong>arcadia-extension</strong> directory.</li>
+                            </ol>
+                        </div>
+
+                        <!-- Edge Instructions -->
+                        <div style="background: rgba(255, 255, 255, 0.015); border: 1px solid var(--border-simple); border-radius: 8px; padding: 18px;">
+                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-primary); border-bottom: 1px solid var(--border-simple); padding-bottom: 8px;">
+                                <i class="fa-brands fa-edge" style="color: #10b981;"></i> Microsoft Edge
+                            </h3>
+                            <ol style="margin-left: 18px; font-size: 12px; color: var(--text-muted); line-height: 1.8; display: flex; flex-direction: column; gap: 6px;">
+                                <li>Download and extract the <strong>arcadia-extension.zip</strong> file (or use the source folder).</li>
+                                <li>Open Microsoft Edge and navigate to <code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: #f0f0f5; font-family: monospace;">edge://extensions</code></li>
+                                <li>Turn on the <strong>Developer mode</strong> toggle in the bottom-left sidebar.</li>
+                                <li>Click <strong>Load unpacked</strong> at the top.</li>
+                                <li>Select the extracted <strong>arcadia-extension</strong> directory.</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            `;
+            elements.gameModal.classList.add('active');
+            
+            // Bind the internal button to open folder
+            document.getElementById('btn-instructions-open-folder')?.addEventListener('click', async () => {
+                try {
+                    await API.openExtensionFolder();
+                    Components.showToast('Opened local extension folder in Explorer.', 'success');
+                } catch (err) {
+                    Components.showToast(`Failed to open extension folder: ${err.message}`, 'error');
+                }
+            });
         });
         elements.btnExportOffline.addEventListener('click', async () => {
             const data = await API.exportOfflineData();

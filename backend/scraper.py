@@ -1,4 +1,4 @@
-﻿"""
+"""
 scraper.py â€” Core scraping module for fitgirl-repacks.site.
 Uses requests + BeautifulSoup. No headless browser needed.
 """
@@ -517,8 +517,7 @@ def _fetch(url: str) -> BeautifulSoup:
     """Fetch a URL and return parsed BeautifulSoup object."""
     resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
-    if not resp.encoding or resp.encoding.lower() in {"iso-8859-1", "ascii"}:
-        resp.encoding = resp.apparent_encoding or "utf-8"
+    resp.encoding = "utf-8"
     return BeautifulSoup(resp.text, "lxml")
 
 
@@ -769,6 +768,19 @@ def search_games(query: str, page: int = 1) -> dict:
     }
 
 
+def _merge_latest_to_index(games: list[dict]):
+    if not games:
+        return
+    index = _get_cached_az_index()
+    if not index:
+        return
+    seen = {game.get("slug") or game.get("url") or game.get("title", "").lower() for game in index}
+    added = _merge_games(index, seen, games)
+    if added > 0:
+        cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
+        _set_index_progress(total=len(index), message=f"Merged {added} new releases from homepage")
+
+
 @cache.cached(ttl=CACHE_TTL)
 def get_latest_repacks(page: int = 1) -> dict:
     """Get latest repacks from the homepage."""
@@ -796,6 +808,12 @@ def get_latest_repacks(page: int = 1) -> dict:
     if games:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(games), 12)) as executor:
             list(executor.map(_populate_thumbnail, games))
+
+    if page == 1 and games:
+        try:
+            threading.Thread(target=_merge_latest_to_index, args=(games,), daemon=True).start()
+        except Exception:
+            pass
 
     next_link = soup.select_one(".nav-links .nav-previous a")
     has_next = bool(next_link)
@@ -883,9 +901,14 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
         "artwork": get_cover_hydration_status(),
     }
 
-@cache.cached(ttl=AZ_INDEX_TTL)
-def get_game_details(slug: str) -> dict | None:
+def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
     """Get full details for a specific game by its URL slug."""
+    key = f"get_game_details:{slug}"
+    if not force_refresh:
+        cached = cache.get(key)
+        if isinstance(cached, dict):
+            return cached
+
     url = f"{BASE_URL}{slug}/"
     try:
         soup = _fetch(url)
@@ -1121,6 +1144,33 @@ def get_game_details(slug: str) -> dict | None:
             }
             if steam_reqs.get("steam_page") and not result.get("steam_page"):
                 result["steam_page"] = steam_reqs["steam_page"]
+
+    # --- Game Updates ---
+    updates = {"instructions": "", "links": []}
+    if content:
+        for h3 in content.select("h3"):
+            if "game updates" in h3.get_text().lower():
+                sibling = h3.find_next_sibling()
+                if sibling:
+                    updates["instructions"] = sibling.get_text("\n", strip=True)
+                    for a in sibling.select("a"):
+                        href = a.get("href", "")
+                        text = a.get_text(strip=True)
+                        if href and text:
+                            is_source = bool(re.search(
+                                r"(elamigos\.site|cs\.rin\.ru|rin\.ru|github\.com|wikipedia\.org|steam)", 
+                                href.lower()
+                            ))
+                            if not is_source:
+                                updates["links"].append({
+                                    "name": text,
+                                    "url": href
+                                })
+                break
+    result["updates"] = updates
+
+    # Save details cache with 12 hours TTL (43200 seconds)
+    cache.set(key, result, 43200)
     return result
 
 

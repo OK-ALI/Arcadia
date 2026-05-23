@@ -1,4 +1,4 @@
-﻿/* â”€â”€ CSS Variable Definitions & Theme Configuration â”€â”€ */
+/* â”€â”€ CSS Variable Definitions & Theme Configuration â”€â”€ */
 :root {
     --bg-primary: #08080a;
     --bg-secondary: #0f0f13;
@@ -272,7 +272,7 @@ body.light-mode .icon-btn {
 }
 
 .sidebar.collapsed .brand-name,
-.sidebar.collapsed .menu-item span,
+.sidebar.collapsed .menu-item > span:not(.menu-icon-wrap),
 .sidebar.collapsed .sidebar-system-panel,
 .sidebar.collapsed .connection-status .status-text,
 .sidebar.collapsed .footer-action span {
@@ -2502,6 +2502,237 @@ body.light-mode .icon-btn:hover {
     width: 0%;
     background: linear-gradient(90deg, var(--accent-pink), var(--accent-orange));
     transition: width 240ms ease;
+}
+
+/* --- Direct Link Paste Download Panel --- */
+.direct-download-panel {
+    display: flex;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-simple);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+body.light-mode .direct-download-panel {
+    background: rgba(255, 255, 255, 0.74);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.direct-download-panel input {
+    flex-grow: 1;
+    height: 38px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-simple);
+    border-radius: 6px;
+    color: var(--text-primary);
+    padding: 0 14px;
+    font-size: 13px;
+    outline: none;
+    transition: var(--transition-fast);
+}
+
+.direct-download-panel input:focus {
+    border-color: var(--accent-pink);
+    box-shadow: 0 0 0 2px rgba(255, 73, 31, 0.15);
+}
+
+.direct-download-panel button {
+    height: 38px;
+    padding: 0 18px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* --- Game Updates details section --- */
+.updates-section {
+    background-color: rgba(16, 185, 129, 0.04);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+    padding-bottom: 8px;
+}
+
+.badge-update {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: var(--accent-green);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.updates-instructions {
+    background-color: rgba(255, 255, 255, 0.02);
+    border-left: 3px solid var(--accent-green);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    margin-bottom: 14px;
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.5;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.updates-instructions i {
+    color: var(--accent-green);
+    margin-top: 2px;
+}
+
+.updates-notice i {
+    margin-top: 2px;
+}
+
+.updates-links-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.btn-update-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-simple);
+    border-radius: 6px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 12px;
+    transition: var(--transition-fast);
+    box-sizing: border-box;
+}
+
+.btn-update-link i {
+    color: var(--accent-green);
+    flex-shrink: 0;
+}
+
+.btn-update-link span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.btn-update-link:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--accent-green);
+}
+
+body.light-mode .btn-update-link {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .btn-update-link:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* --- Browser Extensions panel --- */
+.browser-extensions-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid var(--border-simple);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+body.light-mode .browser-extensions-panel {
+    background: rgba(255, 255, 255, 0.74);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.browser-extensions-panel .panel-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 280px;
+}
+
+.browser-extensions-panel .panel-info i {
+    font-size: 24px;
+}
+
+.browser-extensions-panel .panel-info h4 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.browser-extensions-panel .panel-info p {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
+}
+
+.browser-extensions-panel .extension-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.browser-extensions-panel .extension-buttons .btn {
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+.browser-extensions-panel .extension-buttons .btn i {
+    font-size: 14px;
+}
+
+#btn-install-extension-edge:hover {
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.4);
+    background-color: rgba(16, 185, 129, 0.06);
+}
+
+#btn-install-extension-chrome:hover {
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.4);
+    background-color: rgba(59, 130, 246, 0.06);
+}
+
+#btn-open-local-extension:hover {
+    color: var(--accent-pink);
+    border-color: rgba(255, 73, 31, 0.4);
+    background-color: rgba(255, 73, 31, 0.06);
+}
+
+#btn-extension-instructions:hover {
+    color: var(--accent-orange);
+    border-color: rgba(255, 138, 40, 0.4);
+    background-color: rgba(255, 138, 40, 0.06);
 }
 
 

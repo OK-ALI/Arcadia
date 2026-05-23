@@ -1,4 +1,4 @@
-﻿"""
+"""
 downloader.py - Built-in libtorrent download manager for Arcadia Core.
 
 This manager keeps torrent work in-process through libtorrent. There is no
@@ -15,6 +15,8 @@ import time
 import atexit
 import re
 import ctypes
+import threading
+import requests
 from pathlib import Path
 from typing import Any
 
@@ -131,6 +133,107 @@ def _battery_status() -> dict[str, Any]:
     return {"has_battery": False, "percent": None, "plugged_in": True}
 
 
+class HTTPDownloadWorker(threading.Thread):
+    def __init__(self, item: dict, manager: DownloaderManager):
+        super().__init__(daemon=True)
+        self.item = item
+        self.manager = manager
+        self.url = item["magnet"]
+        self.save_path = item["save_path"]
+        self.filename = item["title"]
+        self.info_hash = item["info_hash"]
+        self.stop_event = threading.Event()
+        self.error = ""
+        
+    def run(self):
+        try:
+            os.makedirs(self.save_path, exist_ok=True)
+            dest_file = os.path.join(self.save_path, self.filename)
+            
+            completed = self.item.get("completed_length", 0)
+            headers = {"User-Agent": "Mozilla/5.0"}
+            if completed > 0 and os.path.exists(dest_file):
+                headers["Range"] = f"bytes={completed}-"
+                mode = "ab"
+            else:
+                completed = 0
+                mode = "wb"
+                
+            resp = requests.get(self.url, headers=headers, stream=True, timeout=15)
+            
+            if completed == 0:
+                total_len = int(resp.headers.get("Content-Length", 0))
+                self.item["total_length"] = total_len
+                disp = resp.headers.get("Content-Disposition", "")
+                if "filename=" in disp:
+                    match = re.search(r'filename="?([^";]+)"?', disp)
+                    if match:
+                        self.filename = match.group(1)
+                        self.item["title"] = self.filename
+                        dest_file = os.path.join(self.save_path, self.filename)
+                self.item["files"] = [{
+                    "index": "1",
+                    "path": self.filename,
+                    "name": self.filename,
+                    "length": total_len,
+                    "completed_length": 0,
+                    "selected": True,
+                    "state": "Selected"
+                }]
+            
+            if resp.status_code == 200 and completed > 0:
+                completed = 0
+                mode = "wb"
+                
+            resp.raise_for_status()
+            
+            last_time = time.time()
+            last_bytes = completed
+            self.item["status"] = "downloading"
+            
+            with open(dest_file, mode) as f:
+                for chunk in resp.iter_content(chunk_size=524288):
+                    if self.stop_event.is_set():
+                        break
+                    if chunk:
+                        f.write(chunk)
+                        completed += len(chunk)
+                        self.item["completed_length"] = completed
+                        if self.item.get("files"):
+                            self.item["files"][0]["completed_length"] = completed
+                        
+                        now = time.time()
+                        diff = now - last_time
+                        if diff >= 1.0:
+                            speed = int((completed - last_bytes) / diff)
+                            self.item["download_speed"] = speed
+                            last_bytes = completed
+                            last_time = now
+                            self.manager._save_state()
+                            
+            self.item["download_speed"] = 0
+            if self.stop_event.is_set():
+                self.item["status"] = "paused"
+            else:
+                self.item["status"] = "completed"
+                self.item["completed_at"] = time.time()
+                if self.item.get("files"):
+                    self.item["files"][0]["completed_length"] = completed
+                    self.item["files"][0]["state"] = "Downloaded"
+            self.manager._save_state()
+        except Exception as e:
+            self.error = str(e)
+            self.item["status"] = "error"
+            self.item["last_error"] = str(e)
+            self.item["download_speed"] = 0
+            self.manager._save_state()
+        finally:
+            self.manager.http_threads.pop(self.info_hash, None)
+
+    def stop(self):
+        self.stop_event.set()
+
+
 class DownloaderManager:
     def __init__(self):
         _ensure_dir(DATA_DIR)
@@ -138,6 +241,7 @@ class DownloaderManager:
         _ensure_dir(RESUME_DIR)
         self.session = None
         self.handles: dict[str, Any] = {}
+        self.http_threads: dict[str, HTTPDownloadWorker] = {}
         self.state = self._load_state()
         self.battery_guard_active = False
         self._migrate_state()
@@ -239,6 +343,10 @@ class DownloaderManager:
         self._save_state()
 
     def shutdown(self):
+        for info_hash, worker in list(self.http_threads.items()):
+            worker.stop()
+        for info_hash, worker in list(self.http_threads.items()):
+            worker.join(timeout=1.0)
         self.save_resume_data(wait=True)
 
     def _apply_battery_guard(self):
@@ -383,8 +491,32 @@ class DownloaderManager:
         self.handles[info_hash] = handle
         return handle
 
+    def _start_http_download(self, item: dict):
+        info_hash = item.get("info_hash")
+        if not info_hash:
+            return
+        worker = self.http_threads.get(info_hash)
+        if worker and worker.is_alive():
+            return
+        item["status"] = "downloading"
+        worker = HTTPDownloadWorker(item, self)
+        self.http_threads[info_hash] = worker
+        worker.start()
+
+    def _stop_http_download(self, info_hash: str):
+        worker = self.http_threads.pop(info_hash, None)
+        if worker:
+            worker.stop()
+
     def _restore_download_handles(self):
         for item in self.state.get("downloads", []):
+            if item.get("engine") == "http":
+                if not self._is_user_paused(item) and item.get("status") in {"downloading", "queued"}:
+                    self._start_http_download(item)
+                else:
+                    item["status"] = "paused"
+                continue
+
             magnet = item.get("magnet")
             if not magnet:
                 continue
@@ -601,6 +733,67 @@ class DownloaderManager:
         self._save_state()
         return item
 
+    def add_http_download(
+        self,
+        url: str,
+        save_path: str | None = None,
+        slug: str | None = None,
+    ) -> dict[str, Any]:
+        if self._apply_battery_guard():
+            raise ValueError(self.state.get("battery_guard", {}).get("message") or "Downloads are paused because battery is low.")
+        
+        info_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()
+        existing = self._download_by_hash(info_hash)
+        if existing:
+            if existing.get("status") == "paused":
+                existing["user_paused"] = False
+                existing["status"] = "queued"
+                self._start_http_download(existing)
+            return existing
+
+        filename = url.split("/")[-1].split("?")[0] or "download"
+        filename = re.sub(r'[\\/*?:"<>|]', "_", filename)  # sanitize filename
+        if not filename or filename == "download":
+            filename = "download"
+
+        target_dir = _normalize_path(save_path or self.state["settings"].get("default_save_path") or DEFAULT_DOWNLOAD_DIR)
+        _ensure_dir(target_dir)
+
+        item = {
+            "id": info_hash,
+            "info_hash": info_hash,
+            "slug": slug or "",
+            "title": filename,
+            "magnet": url,
+            "save_path": target_dir,
+            "selected_file_indexes": ["1"],
+            "priority": "Normal",
+            "manual_order": self._next_order("Normal"),
+            "status": "queued",
+            "user_paused": False,
+            "files": [{
+                "index": "1",
+                "path": filename,
+                "name": filename,
+                "length": 0,
+                "completed_length": 0,
+                "selected": True,
+                "state": "Selected"
+            }],
+            "engine": "http",
+            "created_at": _now(),
+            "updated_at": _now(),
+            "completed_at": None,
+            "last_error": "",
+            "completed_length": 0,
+            "total_length": 0,
+        }
+        self.state["downloads"].append(item)
+        self._sort_downloads()
+        self._start_http_download(item)
+        self._save_state()
+        return item
+
     def _next_order(self, priority: str) -> int:
         orders = [int(x.get("manual_order", 0)) for x in self.state["downloads"] if x.get("priority") == priority]
         return (max(orders) + 1) if orders else 1
@@ -621,6 +814,42 @@ class DownloaderManager:
                 engine["last_error"] = str(exc)
         battery_paused = self._apply_battery_guard()
         for item in self.state["downloads"]:
+            if item.get("engine") == "http":
+                info_hash = item.get("info_hash")
+                item["seeders"] = 0
+                item["connections"] = 0
+                item["upload_speed"] = 0
+                if not item.get("files"):
+                    filename = item.get("title", "download")
+                    item["files"] = [{
+                        "index": "1",
+                        "path": filename,
+                        "name": filename,
+                        "length": item.get("total_length", 0),
+                        "completed_length": item.get("completed_length", 0),
+                        "selected": True,
+                        "state": "Selected" if item.get("status") != "completed" else "Downloaded"
+                    }]
+                if battery_paused or self._is_user_paused(item):
+                    self._stop_http_download(info_hash)
+                    item["status"] = "paused"
+                    item["download_speed"] = 0
+                    if battery_paused:
+                        item["battery_paused"] = True
+                    continue
+                
+                worker = self.http_threads.get(info_hash)
+                if worker and worker.is_alive():
+                    item["status"] = "downloading"
+                else:
+                    if item.get("status") in {"downloading", "queued"}:
+                        self._start_http_download(item)
+                    elif item.get("status") == "completed" and not item.get("completed_at"):
+                        item["completed_at"] = _now()
+                        if item.get("files"):
+                            item["files"][0]["state"] = "Downloaded"
+                continue
+
             if battery_paused:
                 continue
             handle = self.handles.get(item.get("info_hash"))
@@ -665,6 +894,41 @@ class DownloaderManager:
         item = self._download_by_hash(info_hash)
         if not item:
             raise ValueError("Download not found.")
+        
+        if item.get("engine") == "http":
+            if action == "pause":
+                self._stop_http_download(info_hash)
+                item["status"] = "paused"
+                item["user_paused"] = True
+                item["download_speed"] = 0
+            elif action in {"resume", "retry"}:
+                if self._apply_battery_guard():
+                    raise ValueError(self.state.get("battery_guard", {}).get("message") or "Downloads are paused because battery is low.")
+                item["user_paused"] = False
+                item.pop("battery_paused", None)
+                item["last_error"] = ""
+                self._start_http_download(item)
+            elif action == "remove":
+                self._stop_http_download(info_hash)
+                self.state["downloads"] = [x for x in self.state["downloads"] if x.get("info_hash") != info_hash]
+            elif action == "delete-files":
+                self._stop_http_download(info_hash)
+                dest_file = os.path.join(item.get("save_path"), item.get("title"))
+                try:
+                    if os.path.exists(dest_file):
+                        os.remove(dest_file)
+                except OSError:
+                    pass
+                self.state["downloads"] = [x for x in self.state["downloads"] if x.get("info_hash") != info_hash]
+            elif action == "open-folder":
+                save_path = item.get("save_path")
+                if save_path and os.path.exists(save_path):
+                    os.startfile(save_path)
+            else:
+                raise ValueError("Unknown download action.")
+            self._save_state()
+            return item
+
         self.ensure_engine()
         handle = self.handles.get(info_hash)
         if not handle and item.get("magnet"):
