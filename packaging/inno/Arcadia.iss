@@ -1,6 +1,6 @@
 #define MyAppName "Arcadia Core"
 #define MyAppExeName "Arcadia.exe"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "0.1.4"
 #define MyAppPublisher "Arcadia"
 #define MySourceDir "..\..\dist\Arcadia"
 

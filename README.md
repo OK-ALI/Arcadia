@@ -5,7 +5,7 @@
 Arcadia Core is a Windows desktop gaming hub built with Python, Flask,
 pywebview, HTML, CSS, and vanilla JavaScript. It focuses on fast game discovery,
 live gaming news, local catalog caching, hardware compatibility checks, and a
-built-in torrent download experience powered by libtorrent.
+built-in download experience powered by libtorrent plus direct-file capture.
 
 ## Download
 
@@ -44,6 +44,14 @@ available:
 - Built-in libtorrent download manager with selectable files, queue priority,
   pause/resume, retry, folder opening, magnet copy, live speed, seeders, ETA,
   and progress.
+- FDM-style capture review for pasted, clipboard, browser-extension, and
+  `arcadia://` download links before anything starts downloading.
+- Direct HTTP/HTTPS file downloads with safe filename handling, pause/resume,
+  exact-file delete protection, and progress tracking.
+- HTTP `.torrent` links are inspected and converted into the normal torrent
+  preparation flow when libtorrent can parse them.
+- Browser extension ZIP is served by Arcadia and packaged with production
+  builds for manual Chrome/Edge unpacked installation.
 - Custom download folder selection through a native Windows folder picker.
 - Resume data is saved so downloads can continue from previous progress after
   relaunch when torrent state is available.
@@ -76,6 +84,31 @@ depends on seeders, trackers, ISP limits, disk speed, Wi-Fi quality, and system
 conditions. Users can set custom download and upload limits from the Downloads
 settings panel.
 
+Captured links are never started blindly. Arcadia first probes supported
+`http`, `https`, and `magnet` links, shows a review modal with file type, host,
+size when available, resumable support, save folder, priority, and start mode,
+then adds the task only after user confirmation.
+
+Arcadia does not bypass captchas, timers, ad pages, or hidden download flows.
+Those pages must still produce a real downloadable URL before Arcadia can handle
+the file in-app.
+
+## Browser Download Capture
+
+The `arcadia-extension` folder contains the Arcadia Download Interceptor
+extension for Chromium-based browsers. In production builds, Arcadia packages
+this folder and serves it as:
+
+```text
+/api/app/download-extension
+/api/app/download-extension/arcadia-extension.zip
+```
+
+The extension captures supported browser downloads, focuses Arcadia, and sends
+the URL into the same review modal used by pasted and protocol links. Store
+buttons are hidden until real Chrome/Edge store listings exist; manual ZIP or
+unpacked installation is the supported path for now.
+
 ## Source Attribution
 
 Arcadia Core can use public game/source pages for catalog metadata, artwork,
@@ -85,8 +118,9 @@ links, but they are not used as Arcadia Core branding.
 ## Privacy And Local Data
 
 Runtime cache, download state, resume files, offline catalog files, and cached
-artwork are stored locally under the app data folder. These files are excluded
-from the Git repository.
+artwork are stored locally under the app data folder. Capture and crash logs are
+also written under the app data folder instead of beside the executable. These
+files are excluded from the Git repository.
 
 ## Development
 
@@ -126,13 +160,21 @@ The installer output is:
 installer-output\ArcadiaCoreSetup.exe
 ```
 
+The PyInstaller build should include the packaged browser extension at:
+
+```text
+dist\Arcadia\_internal\arcadia-extension\manifest.json
+```
+
 ## Recommended Release Flow
 
 1. Run frontend and backend checks.
-2. Build the PyInstaller distribution.
-3. Build the Inno Setup installer.
-4. Create a GitHub release tag.
-5. Upload `ArcadiaCoreSetup.exe` as the release asset.
+2. Smoke test the capture endpoints, including `/api/torrent/probe-url`.
+3. Build the PyInstaller distribution.
+4. Verify `dist\Arcadia\_internal\arcadia-extension\manifest.json` exists.
+5. Build the Inno Setup installer.
+6. Create a GitHub release tag.
+7. Upload `ArcadiaCoreSetup.exe` as the release asset.
 
 ## Notes
 

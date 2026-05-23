@@ -4,13 +4,16 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.1.0
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.1.4
 
 ## Project Overview
 
 Arcadia Core is a Windows desktop gaming hub designed to bring game discovery,
 catalog browsing, live gaming news, system compatibility checks, offline
 metadata storage, and built-in download management into one polished application.
+Downloads can come from prepared torrent metadata, direct HTTP/HTTPS files,
+captured browser downloads, pasted links, clipboard detection, or the
+`arcadia://` custom protocol.
 
 The project was built as a full desktop product rather than a simple web page.
 It combines a local Python backend with a desktop webview frontend, allowing the
@@ -28,6 +31,7 @@ where users can:
 - Read live gaming news and upcoming release/event information.
 - Check whether their Windows system meets available game requirements.
 - Manage downloads from inside the app.
+- Capture downloadable files into Arcadia without starting them blindly.
 - Keep downloads running through tray mode until the app is explicitly quit.
 
 The application is designed with performance, safety, and usability in mind:
@@ -47,6 +51,7 @@ download pausing protects laptop users.
 - pystray
 - pywebview bridge
 - Windows CIM / WMIC hardware detection
+- Browser-extension and custom-protocol capture support
 
 ### Frontend
 
@@ -74,6 +79,8 @@ Arcadia Core uses a local desktop architecture:
    selection dialogs.
 5. A Windows tray controller keeps the app available in the background.
 6. A single-instance guard prevents duplicate background/tray sessions.
+7. Optional browser and protocol integrations pass captured links back into the
+   local Arcadia API for review before download tasks are created.
 
 This structure keeps the UI flexible while still allowing native desktop
 behavior where it matters.
@@ -179,7 +186,8 @@ network refresh fails.
 
 ## Download Manager
 
-Arcadia Core includes a built-in download manager using libtorrent.
+Arcadia Core includes a built-in download manager using libtorrent for torrent
+work and a direct HTTP/HTTPS worker for normal downloadable files.
 
 Download features:
 
@@ -195,9 +203,65 @@ Download features:
 - Persist resume data for relaunch continuity when torrent state is available.
 - Custom default download folder.
 - Native Windows folder picker.
+- Add direct HTTP/HTTPS file URLs after review.
+- Add HTTP `.torrent` URLs into the normal torrent preparation flow when they
+  can be parsed by libtorrent.
+- Add captured links as paused or start them immediately after confirmation.
 
 The app avoids artificial speed caps by default. Actual speed depends on seeders,
 trackers, ISP conditions, disk speed, and network quality.
+
+## Download Capture Flow
+
+Arcadia uses an FDM-style review step for captured links. Supported capture
+entry points include:
+
+- Manual paste in the Downloads tab.
+- Clipboard detection for direct downloadable URLs.
+- Browser extension handoff.
+- `arcadia://add-url?url=...` protocol handoff.
+
+The flow is:
+
+```text
+Captured URL
+-> Validate scheme and size
+-> Probe metadata
+-> Show review modal
+-> User chooses folder, priority, and start mode
+-> Arcadia creates the confirmed task
+```
+
+The review modal can show:
+
+- Link type: magnet, torrent file, or direct file.
+- Filename.
+- Host.
+- File size when available.
+- Content type.
+- Whether resume support appears available.
+- Warnings when a URL looks like a webpage instead of a direct file.
+
+Captured links never start downloading until the user confirms them.
+
+## Browser Extension
+
+The `arcadia-extension` folder contains the Arcadia Download Interceptor
+extension for Chromium-based browsers.
+
+Production behavior:
+
+- PyInstaller packages the extension into the app distribution.
+- Arcadia serves the extension ZIP from `/api/app/download-extension`.
+- The extension uses browser download events to capture supported downloadable
+  URLs.
+- While Arcadia is running, the extension focuses the app and passes the URL to
+  the review modal.
+- If Arcadia is not reachable, the extension falls back to the registered
+  `arcadia://` protocol.
+
+Manual ZIP or unpacked installation is the supported browser integration path
+until official Chrome/Edge store listings exist.
 
 ## Download Safety
 
@@ -205,6 +269,10 @@ Arcadia Core includes several safety measures:
 
 - Remove from queue requires confirmation.
 - Delete files requires a stronger confirmation because local files are removed.
+- Direct HTTP filenames are sanitized before writing to disk.
+- Direct HTTP deletes remove only the exact recorded downloaded file.
+- Captured URLs are limited to `http`, `https`, and `magnet` schemes.
+- Unsupported or malformed captured links are rejected before task creation.
 - Battery guard pauses downloads when an unplugged laptop drops below 20 percent.
 - Closing the window hides the app to tray instead of accidentally terminating
   background work.
@@ -245,8 +313,11 @@ Arcadia Core stores runtime data locally, including:
 - News cache.
 - Download state.
 - Torrent resume data.
+- Captured direct-download task state.
+- Temporary parsed torrent files.
 - Offline library metadata.
 - Cached artwork.
+- Capture/download crash logs.
 
 These runtime files are intentionally excluded from Git so the repository stays
 focused on source code, assets, and packaging configuration.
@@ -263,10 +334,13 @@ Important backend API areas include:
 - `/api/news`
 - `/api/torrent/status`
 - `/api/torrent/settings`
+- `/api/torrent/probe-url`
+- `/api/torrent/add-url`
 - `/api/torrent/prepare`
 - `/api/torrent/confirm`
 - `/api/torrent/control`
 - `/api/app/focus`
+- `/api/app/download-extension`
 
 These APIs separate frontend presentation from backend tasks such as scraping,
 hardware detection, cache management, and download control.
@@ -282,6 +356,16 @@ Arcadia Core is packaged in two stages:
 The installer is uploaded to GitHub Releases so users can download the app
 without cloning the source code.
 
+Production packaging also includes the browser extension. After a PyInstaller
+build, the extension should exist at:
+
+```text
+dist\Arcadia\_internal\arcadia-extension\manifest.json
+```
+
+The Inno Setup installer copies the full `dist\Arcadia` folder, including the
+packaged extension and frontend assets.
+
 ## Engineering Challenges Solved
 
 The project addresses several real desktop-app challenges:
@@ -291,6 +375,9 @@ The project addresses several real desktop-app challenges:
   engine.
 - Preventing duplicate background sessions.
 - Preserving download resume data across app restarts.
+- Routing browser, clipboard, paste, and protocol captures through one review
+  flow.
+- Packaging the browser extension with the installed app.
 - Keeping a very large gallery responsive.
 - Avoiding false compatibility labels when requirements are unknown.
 - Handling dynamic hardware detection across different Windows systems.
@@ -309,6 +396,7 @@ Arcadia Core demonstrates full-stack desktop application development:
 - Background task handling.
 - Local caching strategy.
 - Download manager implementation.
+- Download capture and review workflow.
 - Packaging and release workflow.
 - GitHub repository and release publishing.
 

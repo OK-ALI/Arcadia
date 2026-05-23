@@ -13,15 +13,17 @@ import threading
 import time
 import ctypes
 import re
+import json
 
 import requests
 import webview
 from PIL import Image, ImageDraw
 import pystray
 
-from backend.config import ASSETS_DIR, HOST, PORT, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH
+from backend.config import ASSETS_DIR, DATA_DIR, HOST, PORT, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH
 from backend.server import run_server, set_focus_callback
 from backend.downloader import manager as downloader_manager
+from backend.download_capture import validate_capture_url
 
 ERROR_ALREADY_EXISTS = 183
 _instance_mutex = None
@@ -263,9 +265,9 @@ def clipboard_monitor_loop(window):
                     last_text = text
                     if text.startswith("http://") or text.startswith("https://") or text.startswith("magnet:"):
                         if direct_match.search(text):
-                            safe_url = text.replace('"', '\\"').replace("'", "\\'")
                             try:
-                                window.evaluate_js(f"if (window.onClipboardLinkDetected) window.onClipboardLinkDetected('{safe_url}');")
+                                validate_capture_url(text)
+                                window.evaluate_js(f"if (window.onClipboardLinkDetected) window.onClipboardLinkDetected({json.dumps(text)});")
                             except Exception:
                                 pass
         except Exception:
@@ -318,21 +320,36 @@ def parse_protocol_url(args: list[str]) -> str | None:
         if arg.startswith("arcadia://"):
             match = re.search(r"[?&]url=([^&]+)", arg)
             if match:
-                return urllib.parse.unquote(match.group(1))
+                url = urllib.parse.unquote(match.group(1))
+                validate_capture_url(url)
+                return url
             url = arg[len("arcadia://"):]
             if url.startswith("add-url?url="):
                 url = url[len("add-url?url="):]
-                return urllib.parse.unquote(url)
-            return url
+                url = urllib.parse.unquote(url)
+                validate_capture_url(url)
+                return url
+            return None
+    return None
+
+
+def write_crash_log():
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(os.path.join(DATA_DIR, "crash.log"), "w", encoding="utf-8") as f:
+            import traceback
+            traceback.print_exc(file=f)
+    except Exception:
+        pass
     return None
 
 
 def handle_focus(url: str = None) -> bool:
     res = tray.show_window()
     if url and tray.window:
-        safe_url = url.replace('"', '\\"').replace("'", "\\'")
         try:
-            tray.window.evaluate_js(f"if (window.onCapturedLinkDetected) window.onCapturedLinkDetected('{safe_url}');")
+            validate_capture_url(url)
+            tray.window.evaluate_js(f"if (window.onCapturedLinkDetected) window.onCapturedLinkDetected({json.dumps(url)});")
         except Exception as e:
             print(f"Error evaluating JS on focus: {e}")
     return res
@@ -343,7 +360,10 @@ def main():
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, request_safe_exit)
 
-    protocol_url = parse_protocol_url(sys.argv)
+    try:
+        protocol_url = parse_protocol_url(sys.argv)
+    except ValueError:
+        protocol_url = None
 
     if focus_existing_instance(protocol_url):
         return
@@ -396,11 +416,7 @@ def main():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        try:
-            with open("crash.log", "w") as f:
-                traceback.print_exc(file=f)
-        except Exception:
-            pass
+        write_crash_log()
         tray.safe_shutdown()
         raise
     finally:

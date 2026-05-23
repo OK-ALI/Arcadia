@@ -4,7 +4,8 @@
   "version": "1.0",
   "description": "Intercepts standard file downloads and redirects them to the Arcadia Core client.",
   "permissions": [
-    "downloads"
+    "downloads",
+    "tabs"
   ],
   "host_permissions": [
     "http://127.0.0.1:5000/*"

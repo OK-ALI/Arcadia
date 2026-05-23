@@ -17,6 +17,7 @@ a = Analysis(
     binaries=libtorrent_binaries + webview_binaries,
     datas=[
         ('frontend', 'frontend'),
+        ('arcadia-extension', 'arcadia-extension'),
         ('assets', 'assets'),
         ('assets/icons/arcadia.ico', 'assets/icons'),
         ('frontend/favicon.ico', 'frontend'),

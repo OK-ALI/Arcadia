@@ -6,11 +6,13 @@ Serves the frontend and provides scraping API.
 import webbrowser
 from flask import Flask, jsonify, request, send_from_directory, send_file
 import os
+import sys
 from typing import Callable
 
 from backend.config import DATA_DIR, FRONTEND_DIR, HOST, PORT
 from backend import scraper, cache as app_cache, system, news
 from backend.downloader import manager as downloader_manager
+from backend.download_capture import parse_bool, probe_url, validate_capture_url
 from backend.offline_library import library as offline_library
 
 _focus_callback: Callable[[str | None], bool] | None = None
@@ -50,14 +52,15 @@ def api_app_focus():
 
 
 def get_extension_dir():
-    import sys
+    candidates = []
     if getattr(sys, 'frozen', False):
-        # Compiled app directory (where Arcadia.exe is located)
-        base_dir = os.path.dirname(sys.executable)
-    else:
-        # Development environment root
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_dir, "arcadia-extension")
+        candidates.append(os.path.join(os.path.dirname(sys.executable), "arcadia-extension"))
+        candidates.append(os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(sys.executable)), "arcadia-extension"))
+    candidates.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "arcadia-extension"))
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[0]
 
 
 @app.route("/api/app/open-extension-folder", methods=["POST"])
@@ -111,6 +114,7 @@ def api_open_external_url():
         payload = request.get_json(silent=True) or {}
         url = payload.get("url")
         if url:
+            validate_capture_url(url)
             webbrowser.open(url)
             return jsonify({"success": True})
         return jsonify({"error": "URL parameter is required"}), 400
@@ -362,18 +366,35 @@ def api_torrent_add_url():
         url = payload.get("url", "").strip()
         save_path = payload.get("save_path")
         slug = payload.get("slug")
+        priority = payload.get("priority", "Normal")
+        start_paused = parse_bool(payload.get("start_paused"))
         
-        if not url:
-            return jsonify({"error": "URL parameter is required."}), 400
-            
-        if url.startswith("magnet:") or url.endswith(".torrent") or ".torrent" in url:
+        meta = validate_capture_url(url)
+        if meta["type"] == "magnet":
             slug = slug or "direct-torrent"
             title = "Torrent Download"
             prepared = downloader_manager.prepare_download(slug=slug, title=title, magnet=url, save_path=save_path)
-            return jsonify({"success": True, "type": "torrent", "prepared": prepared})
+            return jsonify({"success": True, "type": "magnet", "prepared": prepared})
+        if meta["type"] == "torrent_file":
+            prepared = downloader_manager.prepare_torrent_file_url(url, save_path=save_path, slug=slug)
+            return jsonify({"success": True, "type": "torrent_file", "prepared": prepared})
         else:
-            item = downloader_manager.add_http_download(url, save_path=save_path, slug=slug)
+            item = downloader_manager.add_http_download(url, save_path=save_path, slug=slug, priority=priority, start_paused=start_paused)
             return jsonify({"success": True, "type": "http", "download": item})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/torrent/probe-url", methods=["POST"])
+def api_torrent_probe_url():
+    """Inspect a captured URL without starting a download."""
+    try:
+        payload = request.get_json(force=True)
+        return jsonify({"success": True, "probe": probe_url(payload.get("url", ""))})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

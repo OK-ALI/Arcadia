@@ -78,7 +78,7 @@ chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
 
 async function sendToArcadia(url) {
     try {
-        const response = await fetch('http://127.0.0.1:5000/api/torrent/add-url', {
+        const response = await fetch('http://127.0.0.1:5000/api/app/focus', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -87,9 +87,7 @@ async function sendToArcadia(url) {
         });
         const data = await response.json();
         if (data.success) {
-            console.log("Arcadia Extension: Sent successfully to Arcadia client.");
-            // Restore Arcadia UI window to display the download progress
-            fetch('http://127.0.0.1:5000/api/app/focus', { method: 'POST' }).catch(() => {});
+            console.log("Arcadia Extension: Sent capture to Arcadia client.");
         } else {
             console.error("Arcadia Extension API error:", data.error);
         }

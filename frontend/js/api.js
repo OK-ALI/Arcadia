@@ -89,11 +89,25 @@ const API = {
         return this._request(`/api/download/prepare-status/${encodeURIComponent(preparedId)}`);
     },
 
-    async addDownloadUrl(url, savePath = '', slug = '') {
+    async probeDownloadUrl(url) {
+        return this._request('/api/torrent/probe-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+    },
+
+    async addDownloadUrl(url, savePath = '', slug = '', options = {}) {
         return this._request('/api/torrent/add-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, save_path: savePath, slug })
+            body: JSON.stringify({
+                url,
+                save_path: savePath,
+                slug,
+                priority: options.priority || 'Normal',
+                start_paused: !!options.startPaused
+            })
         });
     },
 

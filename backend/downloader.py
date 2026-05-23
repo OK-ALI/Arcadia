@@ -29,11 +29,19 @@ else:
     LIBTORRENT_IMPORT_ERROR = ""
 
 from backend.config import DATA_DIR
+from backend.download_capture import (
+    file_url_name,
+    filename_from_content_disposition,
+    safe_filename,
+    safe_join_file,
+    validate_capture_url,
+)
 
 
 STATE_FILE = os.path.join(DATA_DIR, "downloads_state.json")
 RESUME_DIR = os.path.join(DATA_DIR, "resume_data")
 DEFAULT_DOWNLOAD_DIR = os.path.join(DATA_DIR, "downloads")
+TEMP_TORRENT_DIR = os.path.join(DATA_DIR, "temp_torrents")
 PRIORITY_RANK = {
     "Urgent": 0,
     "High": 1,
@@ -148,7 +156,9 @@ class HTTPDownloadWorker(threading.Thread):
     def run(self):
         try:
             os.makedirs(self.save_path, exist_ok=True)
-            dest_file = os.path.join(self.save_path, self.filename)
+            self.filename = safe_filename(self.filename)
+            dest_file = self.item.get("file_path") or safe_join_file(self.save_path, self.filename)
+            self.item["file_path"] = dest_file
             
             completed = self.item.get("completed_length", 0)
             headers = {"User-Agent": "Mozilla/5.0"}
@@ -159,18 +169,21 @@ class HTTPDownloadWorker(threading.Thread):
                 completed = 0
                 mode = "wb"
                 
-            resp = requests.get(self.url, headers=headers, stream=True, timeout=15)
+            resp = requests.get(self.url, headers=headers, stream=True, timeout=15, allow_redirects=True)
+            if completed > 0 and resp.status_code != 206:
+                completed = 0
+                mode = "wb"
             
             if completed == 0:
                 total_len = int(resp.headers.get("Content-Length", 0))
                 self.item["total_length"] = total_len
                 disp = resp.headers.get("Content-Disposition", "")
-                if "filename=" in disp:
-                    match = re.search(r'filename="?([^";]+)"?', disp)
-                    if match:
-                        self.filename = match.group(1)
-                        self.item["title"] = self.filename
-                        dest_file = os.path.join(self.save_path, self.filename)
+                header_name = filename_from_content_disposition(disp)
+                if header_name:
+                    self.filename = header_name
+                    self.item["title"] = self.filename
+                    dest_file = safe_join_file(self.save_path, self.filename)
+                    self.item["file_path"] = dest_file
                 self.item["files"] = [{
                     "index": "1",
                     "path": self.filename,
@@ -181,10 +194,6 @@ class HTTPDownloadWorker(threading.Thread):
                     "state": "Selected"
                 }]
             
-            if resp.status_code == 200 and completed > 0:
-                completed = 0
-                mode = "wb"
-                
             resp.raise_for_status()
             
             last_time = time.time()
@@ -239,6 +248,7 @@ class DownloaderManager:
         _ensure_dir(DATA_DIR)
         _ensure_dir(DEFAULT_DOWNLOAD_DIR)
         _ensure_dir(RESUME_DIR)
+        _ensure_dir(TEMP_TORRENT_DIR)
         self.session = None
         self.handles: dict[str, Any] = {}
         self.http_threads: dict[str, HTTPDownloadWorker] = {}
@@ -599,6 +609,7 @@ class DownloaderManager:
         }
 
     def prepare_download(self, slug: str, title: str, magnet: str, save_path: str | None = None) -> dict[str, Any]:
+        validate_capture_url(magnet)
         info_hash = _parse_info_hash(magnet)
         existing = self._download_by_hash(info_hash)
         if existing:
@@ -637,6 +648,79 @@ class DownloaderManager:
             "files": files,
             "created_at": _now(),
             "metadata_ready": bool(files),
+        }
+        self.state["prepared"][prepared_id] = prepared
+        self._save_state()
+        return self._prepared_payload(prepared)
+
+    def prepare_torrent_file_url(self, url: str, save_path: str | None = None, slug: str | None = None) -> dict[str, Any]:
+        meta = validate_capture_url(url)
+        if meta["type"] != "torrent_file":
+            raise ValueError("Expected an HTTP/HTTPS .torrent URL.")
+        if lt is None:
+            raise RuntimeError(f"libtorrent is not available: {LIBTORRENT_IMPORT_ERROR}")
+        self.ensure_engine()
+        _ensure_dir(TEMP_TORRENT_DIR)
+        digest = hashlib.sha1(url.encode("utf-8")).hexdigest()
+        torrent_path = os.path.join(TEMP_TORRENT_DIR, f"{digest}.torrent")
+        try:
+            response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20, allow_redirects=True)
+            response.raise_for_status()
+            if len(response.content) > 20 * 1024 * 1024:
+                raise ValueError("Torrent file is too large.")
+            Path(torrent_path).write_bytes(response.content)
+            info = lt.torrent_info(torrent_path)
+        except Exception as exc:
+            raise ValueError(f"Could not load torrent file: {exc}") from exc
+
+        info_hash = str(info.info_hash()).lower()
+        existing = self._download_by_hash(info_hash)
+        target_dir = _normalize_path(save_path or self.state["settings"].get("default_save_path") or DEFAULT_DOWNLOAD_DIR)
+        if existing:
+            handle = self.handles.get(info_hash)
+            if not handle:
+                params = lt.add_torrent_params()
+                params.ti = info
+                params.save_path = existing.get("save_path") or target_dir
+                handle = self.session.add_torrent(params)
+                self.handles[info_hash] = handle
+                self._pause_handle(handle)
+            files = self._files_from_handle(handle, existing)
+            return {
+                "mode": "update",
+                "info_hash": info_hash,
+                "existing": existing,
+                "files": files,
+                "engine": self.engine_info(),
+                "metadata_ready": bool(files),
+                "metadata_status": "ready" if files else "loading",
+            }
+
+        params = lt.add_torrent_params()
+        params.ti = info
+        params.save_path = target_dir
+        _ensure_dir(params.save_path)
+        handle = self.session.add_torrent(params)
+        self.handles[info_hash] = handle
+        self._pause_handle(handle)
+        try:
+            handle.prioritize_files([0 for _ in range(info.num_files())])
+        except Exception:
+            pass
+        files = self._files_from_handle(handle)
+        prepared_id = hashlib.sha1(f"{info_hash}:{time.time()}".encode("utf-8")).hexdigest()[:16]
+        prepared = {
+            "mode": "new",
+            "prepared_id": prepared_id,
+            "slug": slug or "direct-torrent",
+            "title": self._torrent_name(handle, info.name() or "Torrent Download"),
+            "magnet": url,
+            "info_hash": info_hash,
+            "save_path": target_dir,
+            "files": files,
+            "created_at": _now(),
+            "metadata_ready": bool(files),
+            "torrent_file": torrent_path,
         }
         self.state["prepared"][prepared_id] = prepared
         self._save_state()
@@ -698,7 +782,15 @@ class DownloaderManager:
             raise ValueError("Prepared download expired. Please prepare it again.")
         handle = self.handles.get(info_hash)
         if not handle:
-            handle = self._add_magnet(prepared["magnet"], save_path or prepared.get("save_path") or DEFAULT_DOWNLOAD_DIR)
+            if prepared.get("torrent_file"):
+                params = lt.add_torrent_params()
+                params.ti = lt.torrent_info(prepared["torrent_file"])
+                params.save_path = _normalize_path(save_path or prepared.get("save_path") or DEFAULT_DOWNLOAD_DIR)
+                _ensure_dir(params.save_path)
+                handle = self.session.add_torrent(params)
+                self.handles[info_hash] = handle
+            else:
+                handle = self._add_magnet(prepared["magnet"], save_path or prepared.get("save_path") or DEFAULT_DOWNLOAD_DIR)
         files = self._files_from_handle(handle, {"selected_file_indexes": selected_indexes})
         if not files:
             self.state["prepared"][prepared_id or ""] = prepared
@@ -738,26 +830,30 @@ class DownloaderManager:
         url: str,
         save_path: str | None = None,
         slug: str | None = None,
+        priority: str = "Normal",
+        start_paused: bool = False,
     ) -> dict[str, Any]:
         if self._apply_battery_guard():
             raise ValueError(self.state.get("battery_guard", {}).get("message") or "Downloads are paused because battery is low.")
-        
+        meta = validate_capture_url(url)
+        if meta["type"] != "http_file":
+            raise ValueError("Expected a direct HTTP/HTTPS file URL.")
+        if priority not in PRIORITY_RANK:
+            priority = "Normal"
         info_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()
         existing = self._download_by_hash(info_hash)
         if existing:
-            if existing.get("status") == "paused":
+            if existing.get("status") == "paused" and not start_paused:
                 existing["user_paused"] = False
                 existing["status"] = "queued"
                 self._start_http_download(existing)
             return existing
 
-        filename = url.split("/")[-1].split("?")[0] or "download"
-        filename = re.sub(r'[\\/*?:"<>|]', "_", filename)  # sanitize filename
-        if not filename or filename == "download":
-            filename = "download"
+        filename = file_url_name(url)
 
         target_dir = _normalize_path(save_path or self.state["settings"].get("default_save_path") or DEFAULT_DOWNLOAD_DIR)
         _ensure_dir(target_dir)
+        file_path = safe_join_file(target_dir, filename)
 
         item = {
             "id": info_hash,
@@ -766,11 +862,12 @@ class DownloaderManager:
             "title": filename,
             "magnet": url,
             "save_path": target_dir,
+            "file_path": file_path,
             "selected_file_indexes": ["1"],
-            "priority": "Normal",
-            "manual_order": self._next_order("Normal"),
-            "status": "queued",
-            "user_paused": False,
+            "priority": "Paused" if start_paused else priority,
+            "manual_order": self._next_order("Paused" if start_paused else priority),
+            "status": "paused" if start_paused else "queued",
+            "user_paused": bool(start_paused),
             "files": [{
                 "index": "1",
                 "path": filename,
@@ -790,7 +887,8 @@ class DownloaderManager:
         }
         self.state["downloads"].append(item)
         self._sort_downloads()
-        self._start_http_download(item)
+        if not start_paused:
+            self._start_http_download(item)
         self._save_state()
         return item
 
@@ -913,9 +1011,11 @@ class DownloaderManager:
                 self.state["downloads"] = [x for x in self.state["downloads"] if x.get("info_hash") != info_hash]
             elif action == "delete-files":
                 self._stop_http_download(info_hash)
-                dest_file = os.path.join(item.get("save_path"), item.get("title"))
+                dest_file = item.get("file_path") or safe_join_file(item.get("save_path") or DEFAULT_DOWNLOAD_DIR, item.get("title") or "download")
                 try:
-                    if os.path.exists(dest_file):
+                    save_root = os.path.abspath(item.get("save_path") or DEFAULT_DOWNLOAD_DIR)
+                    dest_file = os.path.abspath(dest_file)
+                    if os.path.commonpath([save_root, dest_file]) == save_root and os.path.exists(dest_file):
                         os.remove(dest_file)
                 except OSError:
                     pass

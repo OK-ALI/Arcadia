@@ -48,36 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onClipboardLinkDetected = async function(url) {
         if (state.activeClipboardUrl === url) return;
         state.activeClipboardUrl = url;
-
-        // Truncate URL for dialog
-        const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
-        
-        // Show confirm dialog
-        const accepted = await showConfirmDialog({
-            title: 'Download Link Detected',
-            message: `A downloadable link was detected in your clipboard:\n\n${displayUrl}\n\nDo you want to download this link inside Arcadia?`,
-            confirmText: 'Download'
-        });
-
-        state.activeClipboardUrl = null;
-
-        if (accepted) {
-            try {
-                const res = await API.addDownloadUrl(url);
-                if (res.success) {
-                    if (res.type === 'torrent') {
-                        renderPrepareDownloadModal(res.prepared);
-                    } else {
-                        Components.showToast('Direct download task added.', 'success');
-                        await loadDownloads();
-                        switchView('downloads');
-                    }
-                } else {
-                    Components.showToast(res.error || 'Failed to add download task.', 'error');
-                }
-            } catch (err) {
-                Components.showToast(`Failed to add download task: ${err.message}`, 'error');
-            }
+        try {
+            await openDownloadCaptureReview(url, 'Download Link Detected');
+        } finally {
+            state.activeClipboardUrl = null;
         }
     };
 
@@ -86,35 +60,10 @@ document.addEventListener('DOMContentLoaded', () => {
         state.activeCapturedUrl = url;
 
         switchView('downloads');
-
-        // Truncate URL for dialog
-        const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
-        
-        // Show confirm dialog
-        const accepted = await showConfirmDialog({
-            title: 'Captured Browser Download',
-            message: `A download link was captured from your browser:\n\n${displayUrl}\n\nDo you want to add this download to Arcadia?`,
-            confirmText: 'Download'
-        });
-
-        state.activeCapturedUrl = null;
-
-        if (accepted) {
-            try {
-                const res = await API.addDownloadUrl(url);
-                if (res.success) {
-                    if (res.type === 'torrent') {
-                        renderPrepareDownloadModal(res.prepared);
-                    } else {
-                        Components.showToast('Direct download task added.', 'success');
-                        await loadDownloads();
-                    }
-                } else {
-                    Components.showToast(res.error || 'Failed to add download task.', 'error');
-                }
-            } catch (err) {
-                Components.showToast(`Failed to add download task: ${err.message}`, 'error');
-            }
+        try {
+            await openDownloadCaptureReview(url, 'Captured Browser Download');
+        } finally {
+            state.activeCapturedUrl = null;
         }
     };
 
@@ -337,6 +286,105 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function formatSpeed(bytes) {
         return `${formatBytes(bytes)}/s`;
+    }
+
+    function captureTypeLabel(type) {
+        if (type === 'magnet') return 'Magnet Link';
+        if (type === 'torrent_file') return 'Torrent File';
+        return 'Direct File';
+    }
+
+    async function openDownloadCaptureReview(url, title = 'Add Download') {
+        elements.modalContentBody.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>Inspecting download link...</p></div>';
+        elements.gameModal.classList.add('active');
+        let probe = null;
+        try {
+            const data = await API.probeDownloadUrl(url);
+            probe = data.probe || {};
+        } catch (err) {
+            elements.modalContentBody.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><p>${escapeHTML(err.message)}</p></div>`;
+            return;
+        }
+
+        const defaultPath = elements.downloadDefaultPath?.value || '';
+        const warnings = (probe.warnings || []).map(item => `<li>${escapeHTML(item)}</li>`).join('');
+        const displayUrl = probe.original_url || probe.url || url;
+        elements.modalContentBody.innerHTML = `
+            <div class="download-capture-modal">
+                <h2><i class="fa-solid fa-download text-pink"></i> ${escapeHTML(title)}</h2>
+                <div class="capture-summary">
+                    <div><span>Type</span><strong>${escapeHTML(captureTypeLabel(probe.type))}</strong></div>
+                    <div><span>File</span><strong title="${escapeHTML(probe.filename || '')}">${escapeHTML(probe.filename || 'Download')}</strong></div>
+                    <div><span>Size</span><strong>${probe.size ? formatBytes(probe.size) : 'Unknown'}</strong></div>
+                    <div><span>Host</span><strong>${escapeHTML(probe.host || 'Magnet')}</strong></div>
+                    <div><span>Resume</span><strong>${probe.resumable ? 'Supported' : 'Unknown'}</strong></div>
+                    <div><span>Content</span><strong>${escapeHTML(probe.content_type || 'unknown')}</strong></div>
+                </div>
+                ${warnings ? `<div class="capture-warning"><i class="fa-solid fa-triangle-exclamation"></i><ul>${warnings}</ul></div>` : ''}
+                <label class="capture-field">
+                    <span>Source URL</span>
+                    <input type="text" value="${escapeHTML(displayUrl)}" readonly>
+                </label>
+                <label class="capture-field">
+                    <span>Save folder</span>
+                    <div class="path-input-row">
+                        <input type="text" id="capture-save-path" value="${escapeHTML(defaultPath)}" placeholder="Default downloads folder">
+                        <button class="btn btn-secondary" id="capture-browse-folder"><i class="fa-solid fa-folder-open"></i></button>
+                    </div>
+                </label>
+                <div class="capture-options">
+                    <label class="capture-field">
+                        <span>Priority</span>
+                        <select id="capture-priority">
+                            <option>Normal</option>
+                            <option>Urgent</option>
+                            <option>High</option>
+                            <option>Low</option>
+                        </select>
+                    </label>
+                    <label class="capture-check">
+                        <input type="checkbox" id="capture-start-paused">
+                        <span>Add paused</span>
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-primary" id="capture-confirm-add"><i class="fa-solid fa-plus"></i> Add to Arcadia</button>
+                    <button class="btn btn-secondary" id="capture-cancel">Cancel</button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('capture-browse-folder')?.addEventListener('click', async () => {
+            const input = document.getElementById('capture-save-path');
+            const folder = await chooseFolder(input?.value || defaultPath);
+            if (folder && input) input.value = folder;
+        });
+        document.getElementById('capture-cancel')?.addEventListener('click', () => {
+            elements.gameModal.classList.remove('active');
+        });
+        document.getElementById('capture-confirm-add')?.addEventListener('click', async e => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+            try {
+                const savePath = document.getElementById('capture-save-path')?.value || '';
+                const priority = document.getElementById('capture-priority')?.value || 'Normal';
+                const startPaused = !!document.getElementById('capture-start-paused')?.checked;
+                const res = await API.addDownloadUrl(displayUrl, savePath, '', { priority, startPaused });
+                if (res.type === 'magnet' || res.type === 'torrent_file' || res.type === 'torrent') {
+                    renderPrepareDownloadModal(res.prepared);
+                    return;
+                }
+                Components.showToast(startPaused ? 'Download added paused.' : 'Direct download task added.', 'success');
+                elements.gameModal.classList.remove('active');
+                await loadDownloads();
+                switchView('downloads');
+            } catch (err) {
+                Components.showToast(`Failed to add download task: ${err.message}`, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-plus"></i> Add to Arcadia';
+            }
+        });
     }
 
     function updateNavDownloadBadge(downloads = []) {
@@ -1426,22 +1474,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             elements.btnSubmitDirectDownload.disabled = true;
-            elements.btnSubmitDirectDownload.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+            elements.btnSubmitDirectDownload.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
             try {
-                const res = await API.addDownloadUrl(url);
-                if (res.success) {
-                    elements.directDownloadUrl.value = '';
-                    if (res.type === 'torrent') {
-                        renderPrepareDownloadModal(res.prepared);
-                    } else {
-                        Components.showToast('Direct download task added.', 'success');
-                        await loadDownloads();
-                    }
-                } else {
-                    Components.showToast(res.error || 'Failed to add download task.', 'error');
-                }
+                await openDownloadCaptureReview(url, 'Add Direct Download');
+                elements.directDownloadUrl.value = '';
             } catch (err) {
-                Components.showToast(`Failed to add download task: ${err.message}`, 'error');
+                Components.showToast(`Failed to inspect download: ${err.message}`, 'error');
             } finally {
                 elements.btnSubmitDirectDownload.disabled = false;
                 elements.btnSubmitDirectDownload.innerHTML = '<i class="fa-solid fa-plus"></i> Add Download';
@@ -1458,17 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.btnDownloadExtensionZip?.addEventListener('click', async (e) => {
             e.preventDefault();
             const downloadUrl = window.location.origin + '/api/app/download-extension/arcadia-extension.zip';
-            try {
-                const res = await API.addDownloadUrl(downloadUrl);
-                if (res.success) {
-                    Components.showToast('Extension download task added to queue.', 'success');
-                    await loadDownloads();
-                } else {
-                    Components.showToast(res.error || 'Failed to add download task.', 'error');
-                }
-            } catch (err) {
-                Components.showToast(`Failed to download extension: ${err.message}`, 'error');
-            }
+            window.open(downloadUrl, '_blank');
         });
         elements.btnInstallExtensionEdge?.addEventListener('click', async (e) => {
             e.preventDefault();
