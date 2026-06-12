@@ -408,7 +408,7 @@ def api_torrent_confirm():
             prepared_id=payload.get("prepared_id"),
             info_hash=payload.get("info_hash", ""),
             selected_indexes=payload.get("selected_indexes", []),
-            save_path=payload.get("save_path") or downloader_manager.state["settings"].get("default_save_path"),
+            save_path=payload.get("save_path"),
             priority=payload.get("priority", "Normal"),
             queue_position=payload.get("queue_position", "normal"),
         )

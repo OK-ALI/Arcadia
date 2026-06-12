@@ -997,7 +997,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-browse-prepare-path')?.addEventListener('click', async () => {
             const input = document.getElementById('prepare-save-path');
             const folder = await chooseFolder(input?.value || defaultPath);
-            if (folder && input) input.value = folder;
+            if (folder && input) {
+                input.value = folder;
+                if (state.lastPreparedDownload) state.lastPreparedDownload.save_path = folder;
+            }
+        });
+        document.getElementById('prepare-save-path')?.addEventListener('input', e => {
+            if (state.lastPreparedDownload) state.lastPreparedDownload.save_path = e.target.value.trim();
         });
         if (!metadataReady && prepared.prepared_id) {
             const started = Date.now();
@@ -1010,6 +1016,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (next.metadata_ready) {
                         clearInterval(state.preparePoller);
                         state.preparePoller = null;
+                        const currentPath = document.getElementById('prepare-save-path')?.value.trim();
+                        if (currentPath) next.save_path = currentPath;
                         next.game = prepared.game;
                         renderPrepareDownloadModal(next);
                     }

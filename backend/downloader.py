@@ -65,6 +65,12 @@ def _normalize_path(path: str | None) -> str:
     return os.path.abspath(os.path.expanduser(value)) if value else ""
 
 
+def _same_path(left: str | None, right: str | None) -> bool:
+    if not left or not right:
+        return False
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+
+
 def _read_json(path: str, default):
     if not os.path.exists(path):
         return default
@@ -740,6 +746,16 @@ class DownloaderManager:
         priorities = [LT_FILE_PRIORITY if i in selected else 0 for i in range(info.num_files())]
         handle.prioritize_files(priorities)
 
+    def _set_handle_save_path(self, handle, current_path: str | None, target_path: str) -> str:
+        target_path = _normalize_path(target_path or current_path or self.state["settings"].get("default_save_path") or DEFAULT_DOWNLOAD_DIR)
+        _ensure_dir(target_path)
+        if handle and handle.is_valid() and current_path and not _same_path(current_path, target_path):
+            try:
+                handle.move_storage(target_path)
+            except Exception:
+                pass
+        return target_path
+
     def confirm_download(
         self,
         prepared_id: str | None,
@@ -754,17 +770,22 @@ class DownloaderManager:
         selected_indexes = [str(i) for i in selected_indexes if str(i)]
         if not selected_indexes:
             raise ValueError("Select at least one file before adding the download.")
-        save_path = _normalize_path(save_path)
+        requested_save_path = _normalize_path(save_path)
         self.ensure_engine()
         existing = self._download_by_hash(info_hash)
         if existing:
             handle = self.handles.get(info_hash)
             if not handle:
-                handle = self._add_magnet(existing.get("magnet", ""), existing.get("save_path") or save_path)
+                handle = self._add_magnet(existing.get("magnet", ""), existing.get("save_path") or requested_save_path)
+            target_save_path = self._set_handle_save_path(
+                handle,
+                existing.get("save_path"),
+                requested_save_path or existing.get("save_path") or DEFAULT_DOWNLOAD_DIR,
+            )
             merged = sorted(set(existing.get("selected_file_indexes", [])) | set(selected_indexes), key=lambda x: int(x))
             existing["selected_file_indexes"] = merged
             existing["priority"] = priority
-            existing["save_path"] = save_path or existing.get("save_path")
+            existing["save_path"] = target_save_path
             existing["updated_at"] = _now()
             self._apply_file_selection(handle, merged)
             if priority == "Paused":
@@ -781,16 +802,19 @@ class DownloaderManager:
         if not prepared:
             raise ValueError("Prepared download expired. Please prepare it again.")
         handle = self.handles.get(info_hash)
+        target_save_path = _normalize_path(requested_save_path or prepared.get("save_path") or self.state["settings"].get("default_save_path") or DEFAULT_DOWNLOAD_DIR)
         if not handle:
             if prepared.get("torrent_file"):
                 params = lt.add_torrent_params()
                 params.ti = lt.torrent_info(prepared["torrent_file"])
-                params.save_path = _normalize_path(save_path or prepared.get("save_path") or DEFAULT_DOWNLOAD_DIR)
+                params.save_path = target_save_path
                 _ensure_dir(params.save_path)
                 handle = self.session.add_torrent(params)
                 self.handles[info_hash] = handle
             else:
-                handle = self._add_magnet(prepared["magnet"], save_path or prepared.get("save_path") or DEFAULT_DOWNLOAD_DIR)
+                handle = self._add_magnet(prepared["magnet"], target_save_path)
+        else:
+            target_save_path = self._set_handle_save_path(handle, prepared.get("save_path"), target_save_path)
         files = self._files_from_handle(handle, {"selected_file_indexes": selected_indexes})
         if not files:
             self.state["prepared"][prepared_id or ""] = prepared
@@ -806,7 +830,7 @@ class DownloaderManager:
             "slug": prepared.get("slug", ""),
             "title": self._torrent_name(handle, prepared.get("title", "Download")),
             "magnet": prepared.get("magnet", ""),
-            "save_path": _normalize_path(save_path or prepared.get("save_path") or DEFAULT_DOWNLOAD_DIR),
+            "save_path": target_save_path,
             "selected_file_indexes": selected_indexes,
             "priority": priority,
             "manual_order": self._next_order(priority),

@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.1.4
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.1.5
 
 ## Project Overview
 
@@ -203,6 +203,8 @@ Download features:
 - Persist resume data for relaunch continuity when torrent state is available.
 - Custom default download folder.
 - Native Windows folder picker.
+- Per-download save folder selection in the torrent file-selection modal,
+  independent from the global default download folder.
 - Add direct HTTP/HTTPS file URLs after review.
 - Add HTTP `.torrent` URLs into the normal torrent preparation flow when they
   can be parsed by libtorrent.
@@ -253,8 +255,8 @@ Production behavior:
 
 - PyInstaller packages the extension into the app distribution.
 - Arcadia serves the extension ZIP from `/api/app/download-extension`.
-- The extension uses browser download events to capture supported downloadable
-  URLs.
+- The extension uses browser download creation, update, MIME-type, filename, and
+  final-URL signals to capture supported downloadable URLs.
 - While Arcadia is running, the extension focuses the app and passes the URL to
   the review modal.
 - If Arcadia is not reachable, the extension falls back to the registered

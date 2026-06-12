@@ -3,6 +3,19 @@ const INTERCEPT_EXTENSIONS = new Set([
     'zip', 'rar', '7z', 'tar', 'gz', 'exe', 'msi', 'iso', 'dmg', 'pkg', 'torrent'
 ]);
 
+const INTERCEPT_MIME_TYPES = new Set([
+    'application/octet-stream',
+    'application/x-bittorrent',
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/x-rar-compressed',
+    'application/vnd.rar',
+    'application/x-7z-compressed',
+    'application/x-msdownload',
+    'application/x-msi',
+    'application/x-iso9660-image'
+]);
+
 // Hostnames to intercept (matches host and all subdomains)
 const INTERCEPT_HOSTS = [
     'datanodes.to',
@@ -13,15 +26,37 @@ const INTERCEPT_HOSTS = [
     'doodrive.com'
 ];
 
+const LOCAL_CAPTURE_ENDPOINT = 'http://127.0.0.1:5000/api/app/focus';
+const CAPTURED_DOWNLOAD_IDS_LIMIT = 200;
+const capturedDownloadIds = [];
+
+function rememberCapturedDownload(id) {
+    if (id === undefined || id === null) return;
+    capturedDownloadIds.push(id);
+    while (capturedDownloadIds.length > CAPTURED_DOWNLOAD_IDS_LIMIT) {
+        capturedDownloadIds.shift();
+    }
+}
+
+function wasCaptured(id) {
+    return capturedDownloadIds.includes(id);
+}
+
 function shouldIntercept(item) {
     const url = item.url || '';
     
     // Ignore local files, browser extensions, or requests originating from Arcadia itself
-    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('http://127.0.0.1:5000')) {
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('http://127.0.0.1:5000') || url.startsWith('http://localhost:5000')) {
         return false;
     }
 
-    // 1. Check tentative filename extension (best way, handles redirected files)
+    // 1. Check MIME type when the browser exposes it before the filename is final.
+    const mime = (item.mime || '').toLowerCase().split(';', 1)[0].trim();
+    if (INTERCEPT_MIME_TYPES.has(mime)) {
+        return true;
+    }
+
+    // 2. Check tentative filename extension (best way, handles redirected files)
     const filename = item.filename || '';
     const extMatch = filename.match(/\.([a-zA-Z0-9]+)$/);
     if (extMatch) {
@@ -31,9 +66,9 @@ function shouldIntercept(item) {
         }
     }
 
-    // 2. Check URL pathname extension
+    // 3. Check URL pathname extension
     try {
-        const parsedUrl = new URL(url);
+        const parsedUrl = new URL(item.finalUrl || url);
         const pathname = parsedUrl.pathname;
         const urlExtMatch = pathname.match(/\.([a-zA-Z0-9]+)$/);
         if (urlExtMatch) {
@@ -43,7 +78,7 @@ function shouldIntercept(item) {
             }
         }
 
-        // 3. Check hostname match
+        // 4. Check hostname match
         const hostname = parsedUrl.hostname.toLowerCase();
         for (const host of INTERCEPT_HOSTS) {
             if (hostname === host || hostname.endsWith('.' + host)) {
@@ -57,39 +92,78 @@ function shouldIntercept(item) {
     return false;
 }
 
-// Intercept the download during filename determination
-chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
-    if (shouldIntercept(item)) {
-        // Cancel the browser's download
-        chrome.downloads.cancel(item.id);
-        
-        // Finalize the determination (required to prevent freezing)
-        suggest();
-
-        console.log("Arcadia Extension: Intercepted and cancelled browser download:", item.url);
-
-        // Send to Arcadia Core API asynchronously
-        sendToArcadia(item.url);
-    } else {
-        // Let normal browser downloads proceed
-        suggest();
+function captureDownload(item, phase) {
+    if (!item || item.id === undefined || item.id === null || wasCaptured(item.id)) {
+        return false;
     }
+
+    if (!shouldIntercept(item)) {
+        return false;
+    }
+
+    rememberCapturedDownload(item.id);
+    const url = item.finalUrl || item.url;
+    chrome.downloads.cancel(item.id, () => {
+        if (chrome.runtime.lastError) {
+            console.warn("Arcadia Extension: Browser cancel warning:", chrome.runtime.lastError.message);
+        }
+    });
+
+    console.log(`Arcadia Extension: Intercepted browser download during ${phase}:`, url);
+    sendToArcadia(url);
+    return true;
+}
+
+// Capture as early as possible so repeated downloads do not fall through to the browser.
+chrome.downloads.onCreated.addListener((item) => {
+    captureDownload(item, 'created');
+});
+
+// Some hosts only expose filename, MIME type, or final URL after the download is created.
+chrome.downloads.onChanged.addListener((delta) => {
+    if (!delta || delta.id === undefined || delta.id === null || wasCaptured(delta.id)) {
+        return;
+    }
+    const becameClassifiable = delta.filename || delta.mime || delta.url || delta.finalUrl;
+    if (!becameClassifiable) {
+        return;
+    }
+    chrome.downloads.search({ id: delta.id }, (items) => {
+        if (chrome.runtime.lastError) {
+            console.warn("Arcadia Extension: Download lookup warning:", chrome.runtime.lastError.message);
+            return;
+        }
+        if (items && items[0]) {
+            captureDownload(items[0], 'changed');
+        }
+    });
+});
+
+// Keep filename determination as a fallback for redirects where the final filename reveals the file type.
+chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+    captureDownload(item, 'filename');
+    suggest();
 });
 
 async function sendToArcadia(url) {
     try {
-        const response = await fetch('http://127.0.0.1:5000/api/app/focus', {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(LOCAL_CAPTURE_ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ url: url })
+            body: JSON.stringify({ url: url }),
+            signal: controller.signal
         });
-        const data = await response.json();
+        clearTimeout(timeoutId);
+        const data = await response.json().catch(() => ({}));
         if (data.success) {
             console.log("Arcadia Extension: Sent capture to Arcadia client.");
         } else {
             console.error("Arcadia Extension API error:", data.error);
+            triggerProtocolLaunch(url);
         }
     } catch (err) {
         console.warn("Arcadia Extension: Local client is offline. Triggering custom protocol fallback:", err);

@@ -3,7 +3,7 @@
  */
 
 const Components = {
-    fallbackCover: '/assets/arcadia-icon.png',
+    fallbackCover: '/assets/game-cover-placeholder.png',
 
     escape(value) {
         return String(value ?? '').replace(/[&<>"']/g, ch => ({

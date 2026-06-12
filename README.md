@@ -13,6 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
+- Latest stable release: `v0.1.5`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation
@@ -53,6 +54,9 @@ available:
 - Browser extension ZIP is served by Arcadia and packaged with production
   builds for manual Chrome/Edge unpacked installation.
 - Custom download folder selection through a native Windows folder picker.
+- Prepared torrent downloads honor the per-download save folder selected in the
+  file-selection modal, even when the global default download folder is
+  different.
 - Resume data is saved so downloads can continue from previous progress after
   relaunch when torrent state is available.
 - Tray mode keeps Arcadia available in the background until **Quit Arcadia** is
@@ -105,9 +109,12 @@ this folder and serves it as:
 ```
 
 The extension captures supported browser downloads, focuses Arcadia, and sends
-the URL into the same review modal used by pasted and protocol links. Store
-buttons are hidden until real Chrome/Edge store listings exist; manual ZIP or
-unpacked installation is the supported path for now.
+the URL into the same review modal used by pasted and protocol links. The
+extension checks download creation, later browser updates, MIME types, final
+URLs, filenames, and known direct-download hosts so redirected files have more
+than one chance to be captured. Store buttons are hidden until real Chrome/Edge
+store listings exist; manual ZIP or unpacked installation is the supported path
+for now.
 
 ## Source Attribution
 
