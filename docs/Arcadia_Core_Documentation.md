@@ -200,6 +200,8 @@ Download features:
 - Show live progress percentage.
 - Show completed size, total size, download speed, upload speed, seeders, and
   ETA.
+- Remove or clear completed rows even if libtorrent reports a late stale source
+  URL/protocol error after the files are already complete.
 - Persist resume data for relaunch continuity when torrent state is available.
 - Custom default download folder.
 - Native Windows folder picker.

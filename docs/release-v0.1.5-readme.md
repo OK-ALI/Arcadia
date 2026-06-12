@@ -8,6 +8,10 @@ This release focuses on bug fixes and polish before larger roadmap work.
 - Changing the global default download folder no longer overrides a game/torrent
   folder chosen in the file-selection modal.
 - Preserved the chosen save folder while torrent metadata is still loading.
+- Fixed completed downloads getting stuck when libtorrent reports a late
+  `unsupported URL protocol` error after the file has already finished.
+- Remove, delete-files, open-folder, and clear-completed no longer require
+  Arcadia to recreate a valid live libtorrent handle for stale completed rows.
 - Improved browser-extension capture reliability for redirected files, MIME-type
   based downloads, final URLs, and late filename updates.
 - Updated Arcadia application, installer, tray, favicon, and extension icons.

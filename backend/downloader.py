@@ -99,6 +99,10 @@ def _parse_info_hash(magnet: str) -> str:
     return value.strip().lower() or hashlib.sha1(magnet.encode("utf-8")).hexdigest()
 
 
+def _is_protocol_error(message: str | None) -> bool:
+    return "unsupported url protocol" in str(message or "").lower()
+
+
 def _human_state(status) -> str:
     if not status:
         return "queued"
@@ -285,6 +289,8 @@ class DownloaderManager:
         self.state["prepared"] = {}
         for item in self.state.get("downloads", []):
             if "already registered" in str(item.get("last_error", "")).lower():
+                item["last_error"] = ""
+            if item.get("status") == "completed" and _is_protocol_error(item.get("last_error")):
                 item["last_error"] = ""
             item.pop("gid", None)
             item.setdefault("engine", "libtorrent")
@@ -746,6 +752,19 @@ class DownloaderManager:
         priorities = [LT_FILE_PRIORITY if i in selected else 0 for i in range(info.num_files())]
         handle.prioritize_files(priorities)
 
+    def _selected_files_complete(self, item: dict[str, Any]) -> bool:
+        files = item.get("files") or []
+        selected = {str(x) for x in item.get("selected_file_indexes") or []}
+        selected_files = [f for f in files if not selected or str(f.get("index")) in selected or f.get("selected")]
+        if not selected_files:
+            return item.get("status") == "completed"
+        for file in selected_files:
+            length = int(file.get("length") or 0)
+            done = int(file.get("completed_length") or 0)
+            if length <= 0 or done < length:
+                return False
+        return True
+
     def _set_handle_save_path(self, handle, current_path: str | None, target_path: str) -> str:
         target_path = _normalize_path(target_path or current_path or self.state["settings"].get("default_save_path") or DEFAULT_DOWNLOAD_DIR)
         _ensure_dir(target_path)
@@ -1005,6 +1024,11 @@ class DownloaderManager:
             item["seeders"] = int(getattr(status, "num_seeds", 0) or 0)
             item["connections"] = int(getattr(status, "num_peers", 0) or 0)
             item["files"] = self._files_from_handle(handle, item) or item.get("files", [])
+            if self._selected_files_complete(item):
+                item["status"] = "completed"
+                item["completed_length"] = item.get("completed_length") or item.get("total_length") or 0
+                if _is_protocol_error(item.get("last_error")):
+                    item["last_error"] = ""
             if item["status"] == "completed" and not item.get("completed_at"):
                 item["completed_at"] = _now()
         self._sort_downloads()
@@ -1053,6 +1077,35 @@ class DownloaderManager:
             self._save_state()
             return item
 
+        if action in {"remove", "delete-files"}:
+            handle = self.handles.get(info_hash)
+            removed_with_libtorrent = False
+            if handle and handle.is_valid() and self.session:
+                try:
+                    if action == "delete-files":
+                        self.session.remove_torrent(handle, lt.options_t.delete_files)
+                    else:
+                        self.session.remove_torrent(handle)
+                    removed_with_libtorrent = True
+                except Exception:
+                    pass
+            self.handles.pop(info_hash, None)
+            try:
+                os.remove(self._resume_path(info_hash))
+            except OSError:
+                pass
+            if action == "delete-files" and not removed_with_libtorrent:
+                self._delete_known_files(item)
+            self.state["downloads"] = [x for x in self.state["downloads"] if x.get("info_hash") != info_hash]
+            self._save_state()
+            return item
+
+        if action == "open-folder":
+            save_path = item.get("save_path")
+            if save_path and os.path.exists(save_path):
+                os.startfile(save_path)
+            return item
+
         self.ensure_engine()
         handle = self.handles.get(info_hash)
         if not handle and item.get("magnet"):
@@ -1071,28 +1124,6 @@ class DownloaderManager:
             item["status"] = "queued"
             item.pop("battery_paused", None)
             item["last_error"] = ""
-        elif action == "remove":
-            if handle and handle.is_valid() and self.session:
-                self.session.remove_torrent(handle)
-            self.handles.pop(info_hash, None)
-            try:
-                os.remove(self._resume_path(info_hash))
-            except OSError:
-                pass
-            self.state["downloads"] = [x for x in self.state["downloads"] if x.get("info_hash") != info_hash]
-        elif action == "delete-files":
-            if handle and handle.is_valid() and self.session:
-                self.session.remove_torrent(handle, lt.options_t.delete_files)
-            self.handles.pop(info_hash, None)
-            try:
-                os.remove(self._resume_path(info_hash))
-            except OSError:
-                pass
-            self.state["downloads"] = [x for x in self.state["downloads"] if x.get("info_hash") != info_hash]
-        elif action == "open-folder":
-            save_path = item.get("save_path")
-            if save_path and os.path.exists(save_path):
-                os.startfile(save_path)
         else:
             raise ValueError("Unknown download action.")
         self.save_resume_data(wait=False)
@@ -1180,7 +1211,50 @@ class DownloaderManager:
         self.save_resume_data(wait=False)
         self._save_state()
 
+    def _delete_known_files(self, item: dict[str, Any]):
+        save_path = _normalize_path(item.get("save_path") or DEFAULT_DOWNLOAD_DIR)
+        if not save_path or not os.path.isdir(save_path):
+            return
+        if item.get("engine") == "http":
+            file_path = item.get("file_path") or safe_join_file(save_path, item.get("title") or "download")
+            try:
+                file_path = os.path.abspath(file_path)
+                if os.path.commonpath([save_path, file_path]) == save_path and os.path.exists(file_path):
+                    os.remove(file_path)
+            except OSError:
+                pass
+            return
+
+        files = [f for f in item.get("files", []) if f.get("selected", True)]
+        for file in files:
+            rel_path = str(file.get("path") or file.get("name") or "").strip()
+            if not rel_path:
+                continue
+            try:
+                target = os.path.abspath(os.path.join(save_path, rel_path))
+                if os.path.commonpath([save_path, target]) == save_path and os.path.isfile(target):
+                    os.remove(target)
+            except OSError:
+                pass
+
+    def _drop_download_record(self, item: dict[str, Any]):
+        info_hash = item.get("info_hash")
+        handle = self.handles.get(info_hash)
+        if handle and handle.is_valid() and self.session:
+            try:
+                self.session.remove_torrent(handle)
+            except Exception:
+                pass
+        self.handles.pop(info_hash, None)
+        try:
+            os.remove(self._resume_path(info_hash))
+        except OSError:
+            pass
+
     def clear_completed(self):
+        completed = [x for x in self.state["downloads"] if x.get("status") == "completed"]
+        for item in completed:
+            self._drop_download_record(item)
         self.state["downloads"] = [x for x in self.state["downloads"] if x.get("status") != "completed"]
         self._save_state()
 

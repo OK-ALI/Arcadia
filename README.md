@@ -45,6 +45,8 @@ available:
 - Built-in libtorrent download manager with selectable files, queue priority,
   pause/resume, retry, folder opening, magnet copy, live speed, seeders, ETA,
   and progress.
+- Completed download rows can be removed or cleared even if the torrent engine
+  later reports a stale protocol error for the source URL.
 - FDM-style capture review for pasted, clipboard, browser-extension, and
   `arcadia://` download links before anything starts downloading.
 - Direct HTTP/HTTPS file downloads with safe filename handling, pause/resume,
