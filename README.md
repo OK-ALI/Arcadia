@@ -13,7 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
-- Latest stable release: `v0.1.5`
+- Latest stable release: `v0.1.6`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation
@@ -25,6 +25,8 @@ available:
 - Arcadia Core branding with the subtitle **A Gaming Universe**.
 - Dark mode by default with a persistent light theme toggle.
 - Expandable and resizable sidebar with collapsed icon mode.
+- v0.1.6 UI polish with cleaner alignments, responsive layouts, refined cards,
+  modal spacing, focus states, and consistent empty/loading states.
 - Games Gallery with A-Z browsing, pagination, progressive loading, and cached
   artwork.
 - Gallery cards render quickly first, then hydrate artwork and specs in the

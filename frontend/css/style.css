@@ -1,4 +1,4 @@
-/* â”€â”€ CSS Variable Definitions & Theme Configuration â”€â”€ */
+/* CSS Variable Definitions & Theme Configuration */
 :root {
     --bg-primary: #08080a;
     --bg-secondary: #0f0f13;
@@ -51,7 +51,7 @@ body.light-mode {
     --border-simple: rgba(30, 36, 48, 0.1);
 }
 
-/* â”€â”€ Base Styling & Reset â”€â”€ */
+/* Base Styling & Reset */
 * {
     margin: 0;
     padding: 0;
@@ -142,7 +142,7 @@ body.light-mode .btn-secondary:hover {
     border-color: var(--border-color-hover);
 }
 
-/* â”€â”€ App Container & Layout â”€â”€ */
+/* App Container & Layout */
 .app-container {
     display: flex;
     height: 100vh;
@@ -150,7 +150,7 @@ body.light-mode .btn-secondary:hover {
     background-color: var(--bg-primary);
 }
 
-/* â”€â”€ Sidebar Styling â”€â”€ */
+/* Sidebar Styling */
 .sidebar {
     width: var(--sidebar-width, 250px);
     background-color: var(--bg-secondary);
@@ -410,7 +410,7 @@ body.light-mode .menu-item.active {
     background-color: rgba(239, 68, 68, 0.05);
 }
 
-/* â”€â”€ Main Content Area â”€â”€ */
+/* Main Content Area */
 .main-content {
     flex-grow: 1;
     display: flex;
@@ -509,7 +509,7 @@ body.light-mode #search-input:focus {
     display: block;
 }
 
-/* â”€â”€ Hero Section â”€â”€ */
+/* Hero Section */
 .hero-section {
     background: linear-gradient(135deg, rgba(22, 22, 28, 0.95), rgba(10, 10, 15, 0.95));
     border: 1px solid var(--border-color);
@@ -584,7 +584,7 @@ body.light-mode .hero-content h1 {
     line-height: 1.6;
 }
 
-/* â”€â”€ Sections â”€â”€ */
+/* Sections */
 .section-container {
     margin-bottom: 36px;
 }
@@ -599,7 +599,7 @@ body.light-mode .hero-content h1 {
     gap: 10px;
 }
 
-/* â”€â”€ Popular Horizontal Scroll â”€â”€ */
+/* Popular Horizontal Scroll */
 .popular-row {
     display: flex;
     gap: 16px;
@@ -655,14 +655,14 @@ body.light-mode .hero-content h1 {
     text-overflow: ellipsis;
 }
 
-/* â”€â”€ Dashboard Grid Layout â”€â”€ */
+/* Dashboard Grid Layout */
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 300px;
     gap: 32px;
 }
 
-/* â”€â”€ Repacks Cards Grid â”€â”€ */
+/* Repacks Cards Grid */
 .repacks-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -814,7 +814,7 @@ body.light-mode .detail-section {
     border-color: var(--accent-orange);
 }
 
-/* â”€â”€ Upcoming Repacks Sidebar List â”€â”€ */
+/* Upcoming Repacks Sidebar List */
 .sidebar-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-simple);
@@ -869,7 +869,7 @@ body.light-mode .detail-section {
     color: var(--text-primary);
 }
 
-/* â”€â”€ Pagination Controls â”€â”€ */
+/* Pagination Controls */
 .pagination-controls {
     display: flex;
     align-items: center;
@@ -889,7 +889,7 @@ body.light-mode .detail-section {
     font-weight: 700;
 }
 
-/* â”€â”€ Search Header â”€â”€ */
+/* Search Header */
 .search-header {
     display: flex;
     align-items: center;
@@ -903,7 +903,7 @@ body.light-mode .detail-section {
     font-weight: 700;
 }
 
-/* â”€â”€ Game Details Modal Layout â”€â”€ */
+/* Game Details Modal Layout */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -1168,7 +1168,7 @@ body.light-mode .confirm-dialog {
 }
 
 .feature-list li::before {
-    content: "âœ“";
+    content: "\2713";
     position: absolute;
     left: 0;
     color: var(--accent-green);
@@ -1227,7 +1227,7 @@ body.light-mode .confirm-dialog {
     transform: scale(1.08);
 }
 
-/* â”€â”€ Toast Notifications â”€â”€ */
+/* Toast Notifications */
 .toast-container {
     position: fixed;
     bottom: 24px;
@@ -1279,7 +1279,7 @@ body.light-mode .confirm-dialog {
     }
 }
 
-/* â”€â”€ Skeleton Loaders â”€â”€ */
+/* Skeleton Loaders */
 .skeleton-card {
     height: 380px;
     background-color: var(--bg-card);
@@ -1314,7 +1314,7 @@ body.light-mode .confirm-dialog {
     opacity: 0.3;
 }
 
-/* â”€â”€ Hardware & Compatibility Dashboard Styles â”€â”€ */
+/* Hardware & Compatibility Dashboard Styles */
 
 /* Sidebar System Panel */
 .sidebar-system-panel {
@@ -2841,6 +2841,794 @@ body.light-mode .browser-extensions-panel {
     color: var(--accent-orange);
     border-color: rgba(255, 138, 40, 0.4);
     background-color: rgba(255, 138, 40, 0.06);
+}
+
+/* v0.1.6 UI polish */
+:root {
+    --page-gutter: clamp(18px, 2.4vw, 32px);
+    --section-gap: 28px;
+    --card-radius: 8px;
+    --control-height: 38px;
+    --focus-ring: 0 0 0 3px rgba(255, 73, 31, 0.18);
+}
+
+button,
+input,
+select,
+textarea,
+a {
+    font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.az-chip:focus-visible,
+.news-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-color: var(--accent-pink);
+}
+
+.btn {
+    min-height: var(--control-height);
+    padding: 0 16px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.btn i,
+.icon-btn i,
+.menu-item i {
+    flex: 0 0 auto;
+}
+
+.btn:disabled,
+.btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.app-header {
+    min-height: 70px;
+    height: auto;
+    gap: 18px;
+    padding: 14px var(--page-gutter);
+}
+
+.search-bar-container {
+    min-width: 220px;
+}
+
+#search-input {
+    height: 42px;
+    border-radius: 10px;
+}
+
+.header-filters {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.compat-toggle {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 10px;
+    border: 1px solid var(--border-simple);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+}
+
+body.light-mode .compat-toggle {
+    background: rgba(255, 255, 255, 0.78);
+}
+
+.compat-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.compat-toggle .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 20px;
+    flex: 0 0 auto;
+}
+
+.compat-toggle .slider {
+    display: block;
+}
+
+.compat-toggle input:checked + .toggle-switch .slider {
+    background-color: var(--accent-pink);
+    border-color: rgba(255, 73, 31, 0.36);
+}
+
+.compat-toggle input:checked + .toggle-switch .slider:before {
+    transform: translateX(18px);
+}
+
+.compat-toggle .filter-label {
+    white-space: nowrap;
+}
+
+.content-scrollable {
+    padding: var(--page-gutter);
+}
+
+.content-view.active {
+    min-width: 0;
+}
+
+.hero-section,
+.popular-card,
+.game-card,
+.sidebar-card,
+.news-card,
+.source-link-item,
+.downloads-settings-panel,
+.direct-download-panel,
+.browser-extensions-panel,
+.download-row,
+.gallery-index-panel,
+.offline-stat,
+.modal-container,
+.confirm-dialog {
+    border-radius: var(--card-radius);
+}
+
+.hero-section {
+    margin-bottom: var(--section-gap);
+}
+
+.section-container,
+.dashboard-grid,
+.news-grid,
+.source-link-list,
+.downloads-settings-panel,
+.direct-download-panel,
+.browser-extensions-panel,
+.offline-stats-grid {
+    margin-bottom: var(--section-gap);
+}
+
+.section-title,
+.search-header,
+.news-header-row,
+.wishlist-header-row,
+.downloads-header-row,
+.catalog-header-row {
+    min-width: 0;
+}
+
+.section-title {
+    line-height: 1.25;
+}
+
+.news-header-row,
+.wishlist-header-row,
+.downloads-header-row,
+.catalog-header-row,
+.search-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.news-actions,
+.downloads-actions,
+.offline-actions,
+.extension-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.dashboard-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+    gap: 24px;
+    align-items: start;
+}
+
+.repacks-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 18px;
+}
+
+.game-card,
+.popular-card,
+.news-card,
+.download-row,
+.source-link-item {
+    min-width: 0;
+}
+
+.card-info {
+    min-height: 128px;
+}
+
+.card-category,
+.card-title,
+.card-footer,
+.popular-title,
+.news-card h3,
+.source-link-item span,
+.mirror-link span,
+.btn-update-link span {
+    min-width: 0;
+}
+
+.card-footer {
+    gap: 10px;
+}
+
+.card-footer span:first-child,
+.card-size,
+.download-path,
+.download-title-line h3,
+.capture-summary strong,
+.source-link-item small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-compatibility-badge {
+    max-width: calc(100% - 56px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pagination-controls {
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.sidebar {
+    min-width: 78px;
+    max-width: 380px;
+}
+
+.sidebar-brand {
+    gap: 10px;
+    margin-bottom: 28px;
+    padding-left: 4px;
+}
+
+.sidebar-toggle,
+.theme-toggle-btn,
+.icon-btn {
+    flex: 0 0 auto;
+}
+
+.sidebar-resizer {
+    right: -6px;
+    width: 12px;
+}
+
+.sidebar-resizer::after {
+    left: 5px;
+    width: 2px;
+    border-radius: 999px;
+}
+
+body.sidebar-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+.menu-item {
+    min-height: 42px;
+    width: 100%;
+}
+
+.menu-item span:not(.menu-icon-wrap),
+.footer-action span,
+.status-text,
+.brand-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-system-panel {
+    flex: 0 0 auto;
+}
+
+.spec-line span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.modal-container {
+    width: min(1120px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+}
+
+.modal-content {
+    padding: clamp(18px, 2.2vw, 32px);
+}
+
+.modal-grid {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    gap: 28px;
+}
+
+.modal-title {
+    padding-right: 42px;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+.modal-meta-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.modal-meta-item {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 10px;
+    border: 1px solid var(--border-simple);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.018);
+}
+
+.meta-value,
+.detail-text,
+.feature-list li,
+.file-list-box,
+.download-error,
+.updates-instructions,
+.updates-notice,
+.comp-spec-req,
+.comp-spec-user {
+    overflow-wrap: anywhere;
+}
+
+.meta-value-strong {
+    font-weight: 800;
+}
+
+.modal-actions,
+.prepare-footer {
+    flex-wrap: wrap;
+}
+
+.detail-section {
+    margin-top: 20px;
+}
+
+.mirrors-list,
+.screenshots-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.comp-specs-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.comp-spec-compare {
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.calc-speed-value {
+    max-width: 100px;
+}
+
+.calc-speed-unit {
+    max-width: 90px;
+}
+
+.downloads-settings-panel {
+    display: grid;
+    grid-template-columns: 100px minmax(260px, 1.6fr) minmax(130px, 0.7fr) minmax(130px, 0.7fr) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.downloads-settings-panel label,
+.capture-field {
+    min-width: 0;
+}
+
+.downloads-settings-panel .path-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+}
+
+.download-row {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
+    align-items: start;
+}
+
+.download-title-line {
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.download-title-line h3 {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.download-controls {
+    max-width: 470px;
+}
+
+.download-priority-select {
+    height: 34px;
+}
+
+.direct-download-panel {
+    align-items: stretch;
+}
+
+.direct-download-panel input {
+    min-width: 0;
+}
+
+.browser-extensions-panel .panel-info {
+    min-width: min(280px, 100%);
+}
+
+.download-capture-modal,
+.extension-instructions-modal,
+.search-history-modal {
+    max-width: 780px;
+    margin: 0 auto;
+}
+
+.download-capture-modal,
+.extension-instructions-modal {
+    padding: clamp(8px, 1vw, 16px);
+}
+
+.extension-instructions-title {
+    margin-bottom: 16px;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.extension-instructions-copy {
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.extension-instructions-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.extension-instructions-actions .btn {
+    height: 40px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.extension-instructions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+}
+
+.extension-browser-card {
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid var(--border-simple);
+    border-radius: 8px;
+    padding: 18px;
+}
+
+.extension-browser-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-simple);
+    padding-bottom: 8px;
+}
+
+.extension-browser-card ol {
+    margin-left: 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.8;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.extension-browser-card code {
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.browser-chrome {
+    color: #3b82f6;
+}
+
+.browser-edge {
+    color: #10b981;
+}
+
+.search-history-modal {
+    padding: 8px;
+}
+
+.search-history-modal .modal-title {
+    margin-bottom: 20px;
+}
+
+.search-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.quick-history-btn {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    white-space: normal;
+    line-height: 1.35;
+}
+
+.capture-summary {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.capture-field .path-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+}
+
+.capture-field input,
+.capture-field select,
+.downloads-settings-panel input,
+.downloads-settings-panel select,
+.prepare-options-grid input,
+.prepare-options-grid select,
+.file-toolbar input,
+.download-priority-select {
+    min-width: 0;
+}
+
+.empty-state {
+    width: 100%;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border: 1px dashed var(--border-simple);
+    border-radius: var(--card-radius);
+    background: rgba(255, 255, 255, 0.012);
+}
+
+.empty-state i {
+    margin-bottom: 0;
+}
+
+.toast {
+    max-width: min(420px, calc(100vw - 32px));
+}
+
+.grid-empty-state {
+    grid-column: 1 / -1;
+}
+
+.drive-scan-error {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.saving-val-muted {
+    color: var(--text-muted);
+}
+
+@media (max-width: 1180px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .grid-sidebar {
+        order: -1;
+    }
+
+    .downloads-settings-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .downloads-settings-panel #btn-save-download-settings {
+        justify-self: start;
+    }
+}
+
+@media (max-width: 900px) {
+    .app-container {
+        min-width: 0;
+    }
+
+    .sidebar:not(.collapsed) {
+        width: min(var(--sidebar-width, 250px), 230px);
+    }
+
+    .app-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .search-bar-container {
+        max-width: none;
+    }
+
+    .header-filters {
+        justify-content: flex-start;
+    }
+
+    .repacks-grid,
+    .news-grid,
+    .source-link-list {
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    }
+
+    .modal-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-cover {
+        max-width: 260px;
+    }
+
+    .modal-meta-list {
+        grid-template-columns: 1fr;
+    }
+
+    .download-row {
+        grid-template-columns: 1fr;
+    }
+
+    .download-controls {
+        justify-content: flex-start;
+        max-width: none;
+    }
+
+    .direct-download-panel {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 640px) {
+    :root {
+        --page-gutter: 14px;
+    }
+
+    .sidebar {
+        width: 72px;
+        padding: 18px 10px;
+    }
+
+    .sidebar:not(.collapsed) .brand-name,
+    .sidebar:not(.collapsed) .menu-item > span:not(.menu-icon-wrap),
+    .sidebar:not(.collapsed) .sidebar-system-panel,
+    .sidebar:not(.collapsed) .connection-status .status-text,
+    .sidebar:not(.collapsed) .footer-action span {
+        display: none;
+    }
+
+    .sidebar:not(.collapsed) .menu-item,
+    .sidebar:not(.collapsed) .footer-action {
+        justify-content: center;
+        padding: 12px;
+    }
+
+    .sidebar-resizer {
+        display: none;
+    }
+
+    .hero-section {
+        padding: 22px;
+    }
+
+    .hero-content h1 {
+        font-size: 24px;
+    }
+
+    .popular-card {
+        flex-basis: 170px;
+    }
+
+    .popular-img-wrapper {
+        height: 220px;
+    }
+
+    .repacks-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 14px;
+    }
+
+    .card-info {
+        padding: 12px;
+    }
+
+    .card-title {
+        font-size: 13px;
+    }
+
+    .modal-container {
+        width: calc(100vw - 18px);
+        max-height: calc(100vh - 18px);
+    }
+
+    .modal-actions,
+    .prepare-footer,
+    .confirm-actions,
+    .extension-instructions-actions,
+    .capture-options {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .modal-actions .btn,
+    .prepare-footer .btn,
+    .confirm-actions .btn,
+    .extension-instructions-actions .btn,
+    .capture-options .capture-field,
+    .capture-check {
+        width: 100%;
+    }
+
+    .modal-meta-item {
+        grid-template-columns: 1fr;
+    }
+
+    .downloads-settings-panel,
+    .file-toolbar,
+    .prepare-options-grid,
+    .offline-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .download-action-group {
+        flex-wrap: wrap;
+    }
+
+    .toast-container {
+        left: 14px;
+        right: 14px;
+        bottom: 14px;
+    }
 }
 
 

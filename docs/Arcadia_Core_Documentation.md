@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.1.5
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.1.6
 
 ## Project Overview
 
@@ -60,6 +60,8 @@ download pausing protects laptop users.
 - Vanilla JavaScript
 - Font Awesome icons
 - Responsive desktop-style UI
+- v0.1.6 polished alignment, sidebar resizing, card grids, modals, responsive
+  wrapping, focus states, and empty/loading states
 - LocalStorage for persistent UI preferences
 
 ### Packaging

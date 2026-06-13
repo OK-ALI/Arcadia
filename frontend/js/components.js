@@ -377,8 +377,8 @@ const Components = {
                 <div class="calc-header"><i class="fa-solid fa-gauge-high text-pink"></i> High-Speed Download Estimate</div>
                 <div class="calc-inputs-row">
                     <span class="calc-time-label">Your Connection Speed:</span>
-                    <div class="calc-input-wrapper" style="max-width: 100px;"><input type="number" id="calc-speed-val" value="100" min="1" step="10"></div>
-                    <div class="calc-input-wrapper" style="max-width: 90px;"><select id="calc-speed-unit"><option value="Mbps" selected>Mbps</option><option value="MBs">MB/s</option></select></div>
+                    <div class="calc-input-wrapper calc-speed-value"><input type="number" id="calc-speed-val" value="100" min="1" step="10"></div>
+                    <div class="calc-input-wrapper calc-speed-unit"><select id="calc-speed-unit"><option value="Mbps" selected>Mbps</option><option value="MBs">MB/s</option></select></div>
                 </div>
                 <div class="calc-results">
                     <div class="calc-time-item"><span class="calc-time-label">Selected source estimate</span><span class="calc-time-val repack" id="calc-repack-time">--</span></div>
@@ -440,7 +440,7 @@ const Components = {
                         <li class="modal-meta-item"><span class="meta-label">Companies</span><span class="meta-value">${this.escape(game.companies || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Languages</span><span class="meta-value">${this.escape(game.languages || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Original Size</span><span class="meta-value">${this.escape(game.original_size || 'N/A')}</span></li>
-                        <li class="modal-meta-item"><span class="meta-label">Source Size</span><span class="meta-value text-green" style="font-weight: 700;">${this.escape(game.repack_size || 'N/A')}</span></li>
+                        <li class="modal-meta-item"><span class="meta-label">Source Size</span><span class="meta-value meta-value-strong text-green">${this.escape(game.repack_size || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Release Date</span><span class="meta-value">${game.date ? new Date(game.date).toLocaleDateString() : 'N/A'}</span></li>
                     </ul>
                     <div class="modal-actions">

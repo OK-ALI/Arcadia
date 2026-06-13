@@ -26,7 +26,17 @@ from backend.downloader import manager as downloader_manager
 from backend.download_capture import validate_capture_url
 
 ERROR_ALREADY_EXISTS = 183
+APP_USER_MODEL_ID = "OKALI.ArcadiaCore"
 _instance_mutex = None
+
+
+def set_windows_app_user_model_id():
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:
+        pass
 
 
 class TrayController:
@@ -356,6 +366,7 @@ def handle_focus(url: str = None) -> bool:
 
 
 def main():
+    set_windows_app_user_model_id()
     signal.signal(signal.SIGINT, request_safe_exit)
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, request_safe_exit)

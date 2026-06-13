@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (err) {
             console.error('Failed to load drives:', err);
-            elements.sysDrives.innerHTML = '<div style="color:var(--text-muted); font-size:10px;">Drives scan failed</div>';
+            elements.sysDrives.innerHTML = '<div class="drive-scan-error">Drives scan failed</div>';
         }
     }
 
@@ -524,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!filtered.length) {
             const hasPendingSpecs = state.compatibilityOnly && games.some(game => game.requirements?.pending);
             const text = hasPendingSpecs ? 'Checking accurate system requirements for this page...' : emptyText;
-            container.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><p>${escapeHTML(text)}</p></div>`;
+            container.innerHTML = `<div class="empty-state grid-empty-state"><p>${escapeHTML(text)}</p></div>`;
             return;
         }
         filtered.forEach(game => {
@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSourceLinks(container, items) {
         container.innerHTML = (items || []).map(item => `
             <a class="source-link-item" href="${escapeHTML(item.url)}" target="_blank">
-                <span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.source)} Â· ${escapeHTML(item.category)}</small></span>
+                <span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.source)} &middot; ${escapeHTML(item.category)}</small></span>
                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
             </a>
         `).join('');
@@ -1097,7 +1097,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const wlGames = readJSON(STORAGE.wishlistGames, []);
         elements.wishlistContainer.innerHTML = '';
         if (!wlGames.length) {
-            elements.wishlistContainer.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fa-regular fa-star"></i><p>Your wishlist is empty.</p></div>';
+            elements.wishlistContainer.innerHTML = '<div class="empty-state grid-empty-state"><i class="fa-regular fa-star"></i><p>Your wishlist is empty.</p></div>';
             elements.wishlistSavings.style.display = 'none';
             return;
         }
@@ -1108,7 +1108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const savingsPct = originalTotal > 0 ? Math.round((bandwidthSaved / originalTotal) * 100) : 0;
         elements.wishlistSavings.innerHTML = `
             <div class="saving-item"><span class="saving-label">Source Size</span><span class="saving-val">${repackTotal.toFixed(1)} GB</span></div>
-            <div class="saving-item"><span class="saving-label">Original Size</span><span class="saving-val" style="color: var(--text-muted);">${originalTotal.toFixed(1)} GB</span></div>
+            <div class="saving-item"><span class="saving-label">Original Size</span><span class="saving-val saving-val-muted">${originalTotal.toFixed(1)} GB</span></div>
             <div class="saving-item"><span class="saving-label">Bandwidth Saved</span><span class="saving-val text-green">+ ${bandwidthSaved.toFixed(1)} GB (${savingsPct}% Saved)</span></div>
         `;
         renderCards(elements.wishlistContainer, wlGames, 'No compatible games match in wishlist.');
@@ -1531,32 +1531,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         elements.btnExtensionInstructions?.addEventListener('click', () => {
             elements.modalContentBody.innerHTML = `
-                <div class="extension-instructions-modal" style="padding: 24px; max-width: 750px; margin: 0 auto;">
-                    <h2 style="margin-bottom: 16px; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                <div class="extension-instructions-modal">
+                    <h2 class="extension-instructions-title">
                         <i class="fa-solid fa-puzzle-piece text-pink"></i> Browser Extension Installation
                     </h2>
-                    <p style="margin-bottom: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                    <p class="extension-instructions-copy">
                         The Arcadia Download Interceptor extension automatically captures downloads from direct links (like Datanodes, GoFile, Pixeldrain, etc.) and routes them straight to Arcadia Core, saving you from manual copying and pasting.
                     </p>
                     
-                    <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-                        <a href="/api/app/download-extension" class="btn btn-primary" style="height: 40px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;" download="arcadia-extension.zip">
+                    <div class="extension-instructions-actions">
+                        <a href="/api/app/download-extension" class="btn btn-primary" download="arcadia-extension.zip">
                             <i class="fa-solid fa-file-zipper"></i> Download ZIP
                         </a>
-                        <button class="btn btn-secondary" id="btn-instructions-open-folder" style="height: 40px;">
+                        <button class="btn btn-secondary" id="btn-instructions-open-folder">
                             <i class="fa-solid fa-folder-open"></i> Open Source Folder
                         </button>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <div class="extension-instructions-grid">
                         <!-- Chrome Instructions -->
-                        <div style="background: rgba(255, 255, 255, 0.015); border: 1px solid var(--border-simple); border-radius: 8px; padding: 18px;">
-                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-primary); border-bottom: 1px solid var(--border-simple); padding-bottom: 8px;">
-                                <i class="fa-brands fa-chrome" style="color: #3b82f6;"></i> Google Chrome
+                        <div class="extension-browser-card">
+                            <h3>
+                                <i class="fa-brands fa-chrome browser-chrome"></i> Google Chrome
                             </h3>
-                            <ol style="margin-left: 18px; font-size: 12px; color: var(--text-muted); line-height: 1.8; display: flex; flex-direction: column; gap: 6px;">
+                            <ol>
                                 <li>Download and extract the <strong>arcadia-extension.zip</strong> file (or use the source folder).</li>
-                                <li>Open Google Chrome and navigate to <code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: #f0f0f5; font-family: monospace;">chrome://extensions</code></li>
+                                <li>Open Google Chrome and navigate to <code>chrome://extensions</code></li>
                                 <li>Turn on the <strong>Developer mode</strong> toggle in the top-right corner.</li>
                                 <li>Click <strong>Load unpacked</strong> in the top-left.</li>
                                 <li>Select the extracted <strong>arcadia-extension</strong> directory.</li>
@@ -1564,13 +1564,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
 
                         <!-- Edge Instructions -->
-                        <div style="background: rgba(255, 255, 255, 0.015); border: 1px solid var(--border-simple); border-radius: 8px; padding: 18px;">
-                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-primary); border-bottom: 1px solid var(--border-simple); padding-bottom: 8px;">
-                                <i class="fa-brands fa-edge" style="color: #10b981;"></i> Microsoft Edge
+                        <div class="extension-browser-card">
+                            <h3>
+                                <i class="fa-brands fa-edge browser-edge"></i> Microsoft Edge
                             </h3>
-                            <ol style="margin-left: 18px; font-size: 12px; color: var(--text-muted); line-height: 1.8; display: flex; flex-direction: column; gap: 6px;">
+                            <ol>
                                 <li>Download and extract the <strong>arcadia-extension.zip</strong> file (or use the source folder).</li>
-                                <li>Open Microsoft Edge and navigate to <code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; color: #f0f0f5; font-family: monospace;">edge://extensions</code></li>
+                                <li>Open Microsoft Edge and navigate to <code>edge://extensions</code></li>
                                 <li>Turn on the <strong>Developer mode</strong> toggle in the bottom-left sidebar.</li>
                                 <li>Click <strong>Load unpacked</strong> at the top.</li>
                                 <li>Select the extracted <strong>arcadia-extension</strong> directory.</li>
@@ -1607,10 +1607,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             elements.modalContentBody.innerHTML = `
-                <div style="padding: 16px;">
-                    <h2 class="modal-title" style="margin-bottom: 20px;"><i class="fa-solid fa-clock-rotate-left"></i> Search History</h2>
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        ${state.searchHistory.map(q => `<button class="btn btn-secondary quick-history-btn" style="text-align:left; justify-content:flex-start; width:100%;"><i class="fa-solid fa-magnifying-glass text-pink"></i> ${escapeHTML(q)}</button>`).join('')}
+                <div class="search-history-modal">
+                    <h2 class="modal-title"><i class="fa-solid fa-clock-rotate-left"></i> Search History</h2>
+                    <div class="search-history-list">
+                        ${state.searchHistory.map(q => `<button class="btn btn-secondary quick-history-btn"><i class="fa-solid fa-magnifying-glass text-pink"></i> ${escapeHTML(q)}</button>`).join('')}
                     </div>
                 </div>
             `;

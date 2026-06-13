@@ -34,7 +34,7 @@
         <aside class="sidebar" id="app-sidebar">
             <div class="sidebar-brand">
                 <span class="brand-name">Arcadia Core <small>A Gaming Universe</small></span>
-                <button class="sidebar-toggle" id="btn-sidebar-toggle" title="Collapse sidebar">
+                <button class="sidebar-toggle" id="btn-sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
                     <i class="fa-solid fa-bars"></i>
                 </button>
             </div>
@@ -106,17 +106,17 @@
                 <div class="search-bar-container">
                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
                     <input type="text" id="search-input" placeholder="Search your gaming universe..." autocomplete="off">
-                    <button class="clear-search" id="btn-clear-search"><i class="fa-solid fa-xmark"></i></button>
+                    <button class="clear-search" id="btn-clear-search" title="Clear search" aria-label="Clear search"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="header-filters">
                     <button class="theme-toggle-btn" id="btn-theme-toggle" title="Toggle theme" aria-label="Toggle theme">
                         <i class="fa-solid fa-sun"></i>
                     </button>
-                    <label class="toggle-switch">
+                    <label class="compat-toggle" title="Show only games that match this PC">
                         <input type="checkbox" id="toggle-compatibility">
-                        <span class="slider round"></span>
+                        <span class="toggle-switch" aria-hidden="true"><span class="slider round"></span></span>
+                        <span class="filter-label"><i class="fa-solid fa-laptop-code text-pink"></i> Compatible Specs Only</span>
                     </label>
-                    <span class="filter-label"><i class="fa-solid fa-laptop-code text-pink"></i> Compatible Specs Only</span>
                 </div>
             </header>
 
@@ -370,16 +370,16 @@
     </div>
 
     <!-- Game Details Modal (Glassmorphism Overlay) -->
-    <div class="modal-overlay" id="game-modal">
+    <div class="modal-overlay" id="game-modal" role="dialog" aria-modal="true">
         <div class="modal-container">
-            <button class="modal-close" id="btn-modal-close"><i class="fa-solid fa-xmark"></i></button>
+            <button class="modal-close" id="btn-modal-close" title="Close" aria-label="Close modal"><i class="fa-solid fa-xmark"></i></button>
             <div class="modal-content" id="modal-content-body">
                 <!-- Content injected by components.js -->
             </div>
         </div>
     </div>
 
-    <div class="confirm-overlay" id="confirm-modal">
+    <div class="confirm-overlay" id="confirm-modal" role="dialog" aria-modal="true">
         <div class="confirm-dialog">
             <div class="confirm-icon" id="confirm-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
             <div class="confirm-copy">
