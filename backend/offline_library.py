@@ -60,6 +60,28 @@ def _size_gb(size: str) -> float:
     return value
 
 
+def _folder_size_bytes(path: str) -> int:
+    try:
+        root_path = Path(path).resolve()
+    except (OSError, RuntimeError):
+        return 0
+    if not root_path.is_dir():
+        return 0
+
+    total = 0
+    for root, dirs, files in os.walk(root_path):
+        dirs[:] = [name for name in dirs if not os.path.islink(os.path.join(root, name))]
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            if os.path.islink(file_path):
+                continue
+            try:
+                total += os.path.getsize(file_path)
+            except OSError:
+                pass
+    return total
+
+
 class OfflineLibrary:
     def __init__(self):
         os.makedirs(MEDIA_DIR, exist_ok=True)
@@ -128,6 +150,13 @@ class OfflineLibrary:
                 "custom_tags": metadata.get("custom_tags", []),
                 "favorite": metadata.get("favorite", False),
                 "install_status": metadata.get("install_status", "backlog"),
+                "install_path": metadata.get("install_path", ""),
+                "executable_path": metadata.get("executable_path", ""),
+                "executable_candidates": metadata.get("executable_candidates", []),
+                "last_played_at": metadata.get("last_played_at"),
+                "playtime_seconds": metadata.get("playtime_seconds", 0),
+                "launch_count": metadata.get("launch_count", 0),
+                "library_source": metadata.get("library_source", "saved"),
             },
             "saved_at": current.get("saved_at") or time.time(),
             "updated_at": time.time(),
@@ -165,7 +194,19 @@ class OfflineLibrary:
         if not entry:
             raise ValueError("Game is not saved offline.")
         user = entry.setdefault("user", {})
-        for key in ("notes", "custom_tags", "favorite", "install_status"):
+        for key in (
+            "notes",
+            "custom_tags",
+            "favorite",
+            "install_status",
+            "install_path",
+            "executable_path",
+            "executable_candidates",
+            "last_played_at",
+            "playtime_seconds",
+            "launch_count",
+            "library_source",
+        ):
             if key in data:
                 user[key] = data[key]
         entry["updated_at"] = time.time()
@@ -176,6 +217,25 @@ class OfflineLibrary:
         games = self.list_games()
         repack_total = sum(_size_gb(g.get("repack_size", "")) for g in games)
         original_total = sum(_size_gb(g.get("original_size", "")) for g in games)
+        installed_games = 0
+        backlog_games = 0
+        install_paths: set[str] = set()
+        playtime_seconds = 0
+        for entry in self.state.get("games", {}).values():
+            user = entry.get("user", {})
+            install_status = user.get("install_status") or "backlog"
+            if install_status == "installed":
+                installed_games += 1
+                install_path = user.get("install_path") or ""
+                if install_path:
+                    try:
+                        install_paths.add(str(Path(install_path).resolve()).lower())
+                    except (OSError, RuntimeError):
+                        pass
+            elif install_status == "backlog":
+                backlog_games += 1
+            playtime_seconds += int(user.get("playtime_seconds") or 0)
+        installed_size = sum(_folder_size_bytes(path) for path in install_paths)
         downloaded = [d for d in (downloads or []) if d.get("status") == "completed"]
         remaining = [d for d in (downloads or []) if d.get("status") not in {"completed", "removed"}]
         media_files = 0
@@ -189,6 +249,10 @@ class OfflineLibrary:
                     pass
         return {
             "saved_games": len(games),
+            "installed_games": installed_games,
+            "backlog_games": backlog_games,
+            "installed_size_gb": round(installed_size / (1024**3), 2),
+            "playtime_seconds": playtime_seconds,
             "repack_total_gb": round(repack_total, 2),
             "original_total_gb": round(original_total, 2),
             "bandwidth_saved_gb": round(max(original_total - repack_total, 0), 2),

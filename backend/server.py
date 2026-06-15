@@ -10,7 +10,7 @@ import sys
 from typing import Callable
 
 from backend.config import DATA_DIR, FRONTEND_DIR, HOST, PORT
-from backend import scraper, cache as app_cache, system, news
+from backend import scraper, cache as app_cache, system, news, library_service
 from backend.downloader import manager as downloader_manager
 from backend.download_capture import parse_bool, probe_url, validate_capture_url
 from backend.offline_library import library as offline_library
@@ -328,7 +328,7 @@ def api_download_prepare(slug):
         magnet = game.get("magnet_link") or scraper.extract_magnet_link(slug)
         if not magnet:
             return jsonify({"error": "No magnet link found for this game"}), 404
-        offline_library.save_game(game)
+        library_service.save_game(game)
         prepared = downloader_manager.prepare_download(
             slug=slug,
             title=game.get("title", slug),
@@ -420,7 +420,12 @@ def api_torrent_confirm():
 @app.route("/api/torrent/status")
 def api_torrent_status():
     try:
-        return jsonify(downloader_manager.list_status())
+        status = downloader_manager.list_status()
+        enrolled = library_service.enroll_completed_downloads(status.get("downloads", []))
+        if enrolled:
+            downloader_manager.save_state()
+            status["library_enrolled"] = enrolled
+        return jsonify(status)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -555,13 +560,12 @@ def api_system_ping():
 
 @app.route("/api/offline/library")
 def api_offline_library():
-    """Fetch all games available in the offline catalog cache."""
+    """Fetch all games available in My Library/offline catalog cache."""
     try:
-        saved_games = offline_library.list_games()
-        cached_games = app_cache.get_cached_games()
+        saved_games = library_service.list_games()
         seen = set()
         games = []
-        for game in saved_games + cached_games:
+        for game in saved_games:
             slug = game.get("slug")
             if slug and slug not in seen:
                 seen.add(slug)
@@ -607,7 +611,7 @@ def api_offline_save(slug):
         game = scraper.get_game_details(slug)
         if not game:
             return jsonify({"error": "Game not found"}), 404
-        saved = offline_library.save_game(game)
+        saved = library_service.save_game(game)
         return jsonify({"success": True, "entry": saved})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -616,7 +620,7 @@ def api_offline_save(slug):
 @app.route("/api/offline/game/<slug>")
 def api_offline_game(slug):
     try:
-        game = offline_library.get_game(slug)
+        game = library_service.get_game(slug)
         if not game:
             return jsonify({"error": "Offline game not found"}), 404
         return jsonify(game)
@@ -627,8 +631,49 @@ def api_offline_game(slug):
 @app.route("/api/offline/user/<slug>", methods=["POST"])
 def api_offline_user(slug):
     try:
-        entry = offline_library.update_user_data(slug, request.get_json(force=True))
+        payload = request.get_json(force=True)
+        if payload.get("install_status") == "backlog":
+            entry = library_service.mark_backlog(slug)
+        else:
+            entry = library_service.update_user_data(slug, payload)
         return jsonify({"success": True, "entry": entry})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/link/<slug>", methods=["POST"])
+def api_offline_link(slug):
+    try:
+        payload = request.get_json(force=True)
+        result = library_service.link_game(
+            slug,
+            payload.get("install_path", ""),
+            executable_path=payload.get("executable_path"),
+            source=payload.get("source", "manual"),
+        )
+        return jsonify({"success": True, **result})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/launch/<slug>", methods=["POST"])
+def api_offline_launch(slug):
+    try:
+        return jsonify(library_service.launch_game(slug))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/open-folder/<slug>", methods=["POST"])
+def api_offline_open_folder(slug):
+    try:
+        return jsonify(library_service.open_install_folder(slug))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -1,6 +1,6 @@
 #define MyAppName "Arcadia Core"
 #define MyAppExeName "Arcadia.exe"
-#define MyAppVersion "0.1.6"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "Arcadia"
 #define MyAppUserModelID "OKALI.ArcadiaCore"
 #define MySourceDir "..\..\dist\Arcadia"

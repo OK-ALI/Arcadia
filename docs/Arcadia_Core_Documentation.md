@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.1.6
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.2.0
 
 ## Project Overview
 
@@ -33,6 +33,8 @@ where users can:
 - Manage downloads from inside the app.
 - Capture downloadable files into Arcadia without starting them blindly.
 - Keep downloads running through tray mode until the app is explicitly quit.
+- Build a local My Library view with installed-game status, executable links,
+  launch controls, playtime tracking, and installed-folder size reporting.
 
 The application is designed with performance, safety, and usability in mind:
 large catalog operations are paginated, artwork/spec checks are hydrated in the
@@ -60,6 +62,8 @@ download pausing protects laptop users.
 - Vanilla JavaScript
 - Font Awesome icons
 - Responsive desktop-style UI
+- v0.2.0 My Library / Own & Play UI with playable/backlog filters, launch
+  buttons, running indicators, playtime display, and installed-size stats
 - v0.1.6 polished alignment, sidebar resizing, card grids, modals, responsive
   wrapping, focus states, and empty/loading states
 - LocalStorage for persistent UI preferences
@@ -305,6 +309,7 @@ The UI is designed around a gaming hub identity:
 - Resizable sidebar.
 - Tooltip-friendly collapsed navigation.
 - Responsive downloader controls.
+- My Library cards with installed, backlog, missing, and link-needed states.
 - Styled confirmation dialogs.
 - Persistent theme and sidebar preferences.
 
@@ -322,6 +327,7 @@ Arcadia Core stores runtime data locally, including:
 - Captured direct-download task state.
 - Temporary parsed torrent files.
 - Offline library metadata.
+- Executable links, launch count, last played timestamps, and playtime metadata.
 - Cached artwork.
 - Capture/download crash logs.
 
@@ -345,6 +351,11 @@ Important backend API areas include:
 - `/api/torrent/prepare`
 - `/api/torrent/confirm`
 - `/api/torrent/control`
+- `/api/offline/library`
+- `/api/offline/game/<slug>`
+- `/api/offline/link/<slug>`
+- `/api/offline/launch/<slug>`
+- `/api/offline/open-folder/<slug>`
 - `/api/app/focus`
 - `/api/app/download-extension`
 
@@ -385,6 +396,7 @@ The project addresses several real desktop-app challenges:
   flow.
 - Packaging the browser extension with the installed app.
 - Keeping a very large gallery responsive.
+- Evolving saved offline metadata into a launchable local game library.
 - Avoiding false compatibility labels when requirements are unknown.
 - Handling dynamic hardware detection across different Windows systems.
 - Caching artwork without blocking the first render.

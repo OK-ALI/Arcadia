@@ -203,6 +203,10 @@ const API = {
         return this._request('/api/offline/library');
     },
 
+    async getOfflineGame(slug) {
+        return this._request(`/api/offline/game/${slug}`);
+    },
+
     async saveGameOffline(slug) {
         return this._request(`/api/offline/save/${slug}`, { method: 'POST' });
     },
@@ -217,6 +221,22 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+    },
+
+    async linkOfflineGame(slug, payload) {
+        return this._request(`/api/offline/link/${slug}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    },
+
+    async launchOfflineGame(slug) {
+        return this._request(`/api/offline/launch/${slug}`, { method: 'POST' });
+    },
+
+    async openOfflineFolder(slug) {
+        return this._request(`/api/offline/open-folder/${slug}`, { method: 'POST' });
     },
 
     async exportOfflineData() {

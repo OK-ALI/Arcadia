@@ -59,9 +59,9 @@
                     <span class="menu-icon-wrap"><i class="fa-solid fa-cloud-arrow-down text-green"></i><span class="nav-download-badge" id="nav-download-badge">0%</span></span>
                     <span>Downloads</span>
                 </button>
-                <button class="menu-item" id="nav-catalog" title="Offline Catalog">
+                <button class="menu-item" id="nav-catalog" title="My Library">
                     <i class="fa-solid fa-box-open"></i>
-                    <span>Offline Catalog</span>
+                    <span>My Library</span>
                 </button>
                 <button class="menu-item" id="nav-search-history" title="History">
                     <i class="fa-solid fa-clock-rotate-left"></i>
@@ -348,19 +348,26 @@
                     </div>
                 </section>
 
-                <!-- Offline Catalog View -->
+                <!-- My Library View -->
                 <section id="view-catalog" class="content-view">
                     <div class="catalog-header-row">
                         <div>
-                            <h2>My Offline Catalog</h2>
-                            <p>Saved games, local media, notes, filters, and storage planning.</p>
+                            <h2>My Library</h2>
+                            <p>Saved and installed games, launch links, playtime, local media, and storage planning.</p>
                         </div>
                         <div class="offline-actions">
-                            <button class="btn btn-secondary" id="btn-export-offline"><i class="fa-solid fa-file-export"></i> Export</button>
-                            <button class="btn btn-secondary" id="btn-prune-media"><i class="fa-solid fa-scissors"></i> Prune Media</button>
+                            <button class="btn btn-secondary" id="btn-export-offline" title="Copy a backup of My Library and download state"><i class="fa-solid fa-file-export"></i> Backup Library</button>
+                            <button class="btn btn-secondary" id="btn-prune-media" title="Remove cached artwork that is no longer used"><i class="fa-solid fa-scissors"></i> Clean Unused Artwork</button>
                         </div>
                     </div>
                     <div class="offline-stats-grid" id="offline-stats-grid"></div>
+                    <div class="library-filter-tabs" id="library-filter-tabs">
+                        <button class="library-filter-tab active" data-library-filter="playable">Playable</button>
+                        <button class="library-filter-tab" data-library-filter="installed">Installed</button>
+                        <button class="library-filter-tab" data-library-filter="unlinked">Needs Link</button>
+                        <button class="library-filter-tab" data-library-filter="backlog">Backlog</button>
+                        <button class="library-filter-tab" data-library-filter="all">All</button>
+                    </div>
                     <div class="repacks-grid" id="catalog-container">
                         <!-- Offline cached cards injected here -->
                     </div>

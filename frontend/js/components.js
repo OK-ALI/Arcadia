@@ -144,7 +144,15 @@ const Components = {
         card.dataset.slug = game.slug || '';
 
         const comp = this.getCompatibility(game.requirements);
+        const library = game.library || game.offline_user || null;
+        const libraryStatus = library ? this.libraryStatus(library) : null;
+        if (libraryStatus && libraryStatus.className !== 'backlog') card.classList.add(`library-${libraryStatus.className}`);
         const badgeHTML = comp ? `<div class="card-compatibility-badge ${comp.status}">${this.escape(comp.label)}</div>` : '';
+        const libraryBadgeHTML = libraryStatus && libraryStatus.className !== 'backlog' ? `
+            <div class="card-library-badge ${libraryStatus.className}">
+                <i class="fa-solid ${libraryStatus.icon}"></i> ${libraryStatus.label}
+            </div>
+        ` : '';
         const sourceHTML = game.official_site ? `
             <a class="card-official-link" href="${this.escape(game.official_site)}" target="_blank" title="Official game site" onclick="event.stopPropagation()">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
@@ -155,6 +163,7 @@ const Components = {
         card.innerHTML = `
             <div class="card-img-wrapper">
                 ${badgeHTML}
+                ${libraryBadgeHTML}
                 ${sourceHTML}
                 ${hasArtwork ? `<img src="${this.escape(coverImg)}" alt="${safeTitle}" loading="lazy" onerror="this.src='${this.fallbackCover}'">` : `
                     <div class="artwork-loading">
@@ -169,6 +178,63 @@ const Components = {
                 <div class="card-footer">
                     <span>${game.date ? new Date(game.date).toLocaleDateString() : ''}</span>
                     <span class="card-size">${this.escape(sizeText)}</span>
+                </div>
+            </div>
+        `;
+        return card;
+    },
+
+    formatPlaytime(seconds = 0) {
+        const total = Math.max(0, Number(seconds) || 0);
+        if (total <= 0) return 'Not played';
+        if (total < 60) return `${Math.floor(total)}s`;
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        if (hours <= 0) return `${minutes}m`;
+        return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+    },
+
+    libraryStatus(library = {}) {
+        if (library.running) return { label: 'Running', icon: 'fa-spinner fa-spin', className: 'running' };
+        const status = String(library.install_status || 'backlog');
+        if (status === 'installed') return { label: 'Installed', icon: 'fa-circle-play', className: 'installed' };
+        if (status === 'unlinked') return { label: 'Needs Link', icon: 'fa-link-slash', className: 'unlinked' };
+        if (status === 'missing') return { label: 'Missing', icon: 'fa-triangle-exclamation', className: 'missing' };
+        return { label: 'Backlog', icon: 'fa-bookmark', className: 'backlog' };
+    },
+
+    createLibraryCard(game) {
+        const coverImg = this.resolveImage(game);
+        const safeTitle = this.escape(game.title || 'Untitled Game');
+        const library = game.library || game.offline_user || {};
+        const status = this.libraryStatus(library);
+        const canLaunch = library.install_status === 'installed' && library.executable_path && !library.running;
+        const launchLabel = library.running ? 'Running' : 'Launch';
+        const launchIcon = library.running ? 'fa-spinner fa-spin' : 'fa-play';
+        const playtime = this.formatPlaytime(library.playtime_seconds);
+        const lastPlayed = library.last_played_at ? new Date(library.last_played_at * 1000).toLocaleDateString() : 'Never';
+        const card = document.createElement('article');
+        card.className = `library-card ${status.className}`;
+        card.dataset.slug = game.slug || '';
+        card.innerHTML = `
+            <div class="library-art">
+                <img src="${this.escape(coverImg)}" alt="${safeTitle}" loading="lazy" onerror="this.src='${this.fallbackCover}'">
+                <span class="library-status-pill ${status.className}"><i class="fa-solid ${status.icon}"></i> ${status.label}</span>
+            </div>
+            <div class="library-body">
+                <span class="card-category">${this.escape(game.category || library.library_source || 'My Library')}</span>
+                <h3 class="card-title" title="${safeTitle}">${safeTitle}</h3>
+                <div class="library-metrics">
+                    <span><strong>${this.escape(playtime)}</strong><small>Playtime</small></span>
+                    <span><strong>${this.escape(lastPlayed)}</strong><small>Last played</small></span>
+                </div>
+                <div class="library-actions">
+                    <button class="btn btn-success library-launch ${library.running ? 'is-running' : ''}" ${canLaunch ? '' : 'disabled'} title="${library.running ? 'Game is running' : (canLaunch ? 'Launch game' : 'Link executable first')}">
+                        <i class="fa-solid ${launchIcon}"></i> ${launchLabel}
+                    </button>
+                    <button class="icon-btn library-open-folder" title="Open install folder" ${library.install_path ? '' : 'disabled'}><i class="fa-solid fa-folder-open"></i></button>
+                    <button class="icon-btn library-relink" title="Relink executable"><i class="fa-solid fa-link"></i></button>
+                    <button class="icon-btn library-backlog" title="Mark backlog"><i class="fa-solid fa-bookmark"></i></button>
                 </div>
             </div>
         `;
@@ -240,10 +306,20 @@ const Components = {
         const safeTitle = this.escape(game.title || 'Untitled Game');
         const wishlist = JSON.parse(localStorage.getItem('arcadia_wishlist') || localStorage.getItem('fg_wishlist') || '[]');
         const isWishlisted = wishlist.includes(game.slug);
-        const downloadBtnDisabled = !game.magnet_link ? 'disabled' : '';
-        const downloadBtnText = game.magnet_link ? 'Download inside App' : 'No Magnet Link Available';
-        const downloadBtnClass = game.magnet_link ? 'btn-success' : 'btn-secondary';
         const comp = this.getCompatibility(game.requirements);
+        const library = game.library || game.offline_user || null;
+        const libraryStatus = library ? this.libraryStatus(library) : null;
+        const isInstalledLinked = Boolean(library?.install_status === 'installed' && library?.executable_path);
+        const canLaunchLibrary = Boolean(library?.install_status === 'installed' && library?.executable_path && !library?.running);
+        const libraryRunning = Boolean(library?.running);
+        const downloadBtnDisabled = (!game.magnet_link || isInstalledLinked) ? 'disabled' : '';
+        const downloadBtnText = isInstalledLinked
+            ? 'Already Installed'
+            : (game.magnet_link ? 'Download inside App' : 'No Magnet Link Available');
+        const downloadBtnClass = isInstalledLinked ? 'btn-secondary installed-disabled' : (game.magnet_link ? 'btn-success' : 'btn-secondary');
+        const primaryLaunchHTML = (canLaunchLibrary || libraryRunning) ? `
+            <button id="modal-library-launch-primary-btn" class="btn btn-success ${libraryRunning ? 'is-running' : ''}" ${libraryRunning ? 'disabled' : ''}><i class="fa-solid ${libraryRunning ? 'fa-spinner fa-spin' : 'fa-play'}"></i> ${libraryRunning ? 'Running' : 'Launch'}</button>
+        ` : '';
 
         const officialLinks = [
             game.official_site ? `<a href="${this.escape(game.official_site)}" class="mirror-link" target="_blank"><i class="fa-solid fa-globe"></i><span>Official game site</span></a>` : '',
@@ -425,6 +501,25 @@ const Components = {
             `;
         }
 
+        const libraryHTML = library ? `
+            <div class="detail-section library-detail-panel">
+                <div class="section-header-row">
+                    <h3>My Library</h3>
+                    <span class="library-status-pill ${libraryStatus.className}"><i class="fa-solid ${libraryStatus.icon}"></i> ${libraryStatus.label}</span>
+                </div>
+                <div class="library-detail-grid">
+                    <div><span>Playtime</span><strong>${this.escape(this.formatPlaytime(library.playtime_seconds))}</strong></div>
+                    <div><span>Last Played</span><strong>${library.last_played_at ? new Date(library.last_played_at * 1000).toLocaleDateString() : 'Never'}</strong></div>
+                    <div><span>Install Folder</span><strong title="${this.escape(library.install_path || '')}">${this.escape(library.install_path || 'Not linked')}</strong></div>
+                </div>
+                <div class="modal-actions library-detail-actions">
+                    <button id="modal-library-launch-btn" class="btn btn-success ${library.running ? 'is-running' : ''}" ${library.install_status === 'installed' && library.executable_path && !library.running ? '' : 'disabled'}><i class="fa-solid ${library.running ? 'fa-spinner fa-spin' : 'fa-play'}"></i> ${library.running ? 'Running' : 'Launch'}</button>
+                    <button id="modal-library-folder-btn" class="btn btn-secondary" ${library.install_path ? '' : 'disabled'}><i class="fa-solid fa-folder-open"></i> Open Folder</button>
+                    <button id="modal-library-relink-btn" class="btn btn-secondary"><i class="fa-solid fa-link"></i> Relink Executable</button>
+                </div>
+            </div>
+        ` : '';
+
         return `
             <div class="modal-grid">
                 <div>
@@ -444,13 +539,15 @@ const Components = {
                         <li class="modal-meta-item"><span class="meta-label">Release Date</span><span class="meta-value">${game.date ? new Date(game.date).toLocaleDateString() : 'N/A'}</span></li>
                     </ul>
                     <div class="modal-actions">
+                        ${primaryLaunchHTML}
                         <button id="modal-download-btn" class="btn ${downloadBtnClass}" ${downloadBtnDisabled}><i class="fa-solid fa-magnet"></i> ${downloadBtnText}</button>
                         <button id="modal-wishlist-btn" class="btn btn-star-wishlist ${isWishlisted ? 'active' : ''}"><i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-star"></i> ${isWishlisted ? 'Wishlisted' : 'Add to Wishlist'}</button>
-                        <button id="modal-save-offline-btn" class="btn btn-secondary"><i class="fa-solid fa-box-archive"></i> Save Offline</button>
+                        <button id="modal-save-offline-btn" class="btn btn-secondary"><i class="fa-solid fa-box-archive"></i> Save to Library</button>
                         <button id="modal-check-updates-btn" class="btn btn-secondary"><i class="fa-solid fa-rotate"></i> Check for Updates</button>
                         ${game.url ? `<a href="${this.escape(game.url)}" class="btn btn-secondary" target="_blank"><i class="fa-solid fa-database"></i> Open Source Page</a>` : ''}
                     </div>
                     ${officialLinks ? `<div class="detail-section"><h3>Official Links</h3><div class="mirrors-list">${officialLinks}</div></div>` : ''}
+                    ${libraryHTML}
                     ${spaceWarningHTML}
                     ${compatibilityPanelHTML}
                     ${game.description ? `<div class="detail-section"><h3>Game Description</h3><p class="detail-text">${this.escape(game.description)}</p></div>` : ''}

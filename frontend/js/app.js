@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         newsPoller: null,
         newsFilter: 'All',
         lastPreparedDownload: null,
+        libraryFilter: 'playable',
         galleryGames: [],
         galleryLetter: 'all',
         galleryPage: 1,
@@ -31,6 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
         galleryArtworkPoller: null,
         galleryRequirementsLoading: false,
         galleryRequestId: 0,
+        libraryIndex: {},
+        libraryIndexLoaded: false,
+        libraryIndexLoading: null,
+        libraryRunningPoller: null,
         preparePoller: null,
         lastDownloadData: null,
         downloadSettingsDirty: false
@@ -136,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         offlineStatsGrid: document.getElementById('offline-stats-grid'),
         btnExportOffline: document.getElementById('btn-export-offline'),
         btnPruneMedia: document.getElementById('btn-prune-media'),
+        libraryFilterTabs: document.getElementById('library-filter-tabs'),
         btnPrevPage: document.getElementById('btn-prev-page'),
         btnNextPage: document.getElementById('btn-next-page'),
         pageIndicator: document.getElementById('current-page'),
@@ -518,11 +524,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function indexLibraryGames(games = []) {
+        state.libraryIndex = {};
+        games.forEach(game => {
+            if (!game?.slug) return;
+            state.libraryIndex[game.slug] = {
+                library: game.library || game.offline_user || null,
+                offline_user: game.offline_user || game.library || null
+            };
+        });
+        state.libraryIndexLoaded = true;
+    }
+
+    async function refreshLibraryIndex(force = false) {
+        if (state.libraryIndexLoaded && !force) return state.libraryIndex;
+        if (state.libraryIndexLoading && !force) return state.libraryIndexLoading;
+        state.libraryIndexLoading = API.getOfflineCatalog()
+            .then(data => {
+                indexLibraryGames(data.games || []);
+                return state.libraryIndex;
+            })
+            .catch(() => {
+                state.libraryIndexLoaded = true;
+                return state.libraryIndex;
+            })
+            .finally(() => {
+                state.libraryIndexLoading = null;
+            });
+        return state.libraryIndexLoading;
+    }
+
+    function mergeLibraryState(game) {
+        if (!game?.slug) return game;
+        const local = state.libraryIndex[game.slug];
+        if (!local?.library && !local?.offline_user) return game;
+        return {
+            ...game,
+            library: local.library || game.library,
+            offline_user: local.offline_user || game.offline_user
+        };
+    }
+
+    function markLibraryIndexDirty() {
+        state.libraryIndexLoaded = false;
+    }
+
     function renderCards(container, games, emptyText) {
         container.innerHTML = '';
-        const filtered = filterCompatibility(games);
+        const merged = (games || []).map(mergeLibraryState);
+        const filtered = filterCompatibility(merged);
         if (!filtered.length) {
-            const hasPendingSpecs = state.compatibilityOnly && games.some(game => game.requirements?.pending);
+            const hasPendingSpecs = state.compatibilityOnly && merged.some(game => game.requirements?.pending);
             const text = hasPendingSpecs ? 'Checking accurate system requirements for this page...' : emptyText;
             container.innerHTML = `<div class="empty-state grid-empty-state"><p>${escapeHTML(text)}</p></div>`;
             return;
@@ -531,6 +583,162 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = Components.createGameCard(game);
             card.addEventListener('click', () => openGameDetails(game.slug));
             container.appendChild(card);
+        });
+    }
+
+    function renderLibraryCards(container, games, emptyText) {
+        container.innerHTML = '';
+        const byStatus = games.filter(game => {
+            const status = game.library?.install_status || game.offline_user?.install_status || 'backlog';
+            if (state.libraryFilter === 'all') return true;
+            if (state.libraryFilter === 'playable') return ['installed', 'unlinked', 'missing'].includes(status);
+            return status === state.libraryFilter;
+        });
+        const filtered = filterCompatibility(byStatus);
+        if (!filtered.length) {
+            const messages = {
+                playable: 'No installed or linked games yet. Backlog contains saved offline games that are not installed.',
+                installed: 'No installed games are linked yet.',
+                unlinked: 'No games need executable linking.',
+                backlog: 'No backlog games.',
+                all: emptyText
+            };
+            container.innerHTML = `<div class="empty-state grid-empty-state"><i class="fa-solid fa-box-open"></i><p>${escapeHTML(messages[state.libraryFilter] || emptyText)}</p></div>`;
+            return;
+        }
+        filtered.forEach(game => {
+            const card = Components.createLibraryCard(game);
+            card.addEventListener('click', () => openGameDetails(game.slug));
+            card.querySelectorAll('button').forEach(btn => btn.addEventListener('click', event => event.stopPropagation()));
+            card.querySelector('.library-launch')?.addEventListener('click', async e => launchLibraryGame(game.slug, e.currentTarget));
+            card.querySelector('.library-open-folder')?.addEventListener('click', async e => {
+                if (!e.currentTarget.disabled) await openLibraryFolder(game.slug);
+            });
+            card.querySelector('.library-relink')?.addEventListener('click', async () => relinkLibraryGame(game.slug, game.library?.install_path || ''));
+            card.querySelector('.library-backlog')?.addEventListener('click', async () => markLibraryBacklog(game.slug));
+            container.appendChild(card);
+        });
+    }
+
+    function updateLaunchButtonLoading(button) {
+        if (!button) return;
+        button.disabled = true;
+        button.classList.add('is-running');
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running';
+    }
+
+    function startLibraryRunningPoller() {
+        if (state.libraryRunningPoller) return;
+        state.libraryRunningPoller = setInterval(async () => {
+            if (state.activeView !== 'catalog') return;
+            await renderOfflineCatalog();
+        }, 5000);
+    }
+
+    function stopLibraryRunningPoller() {
+        if (!state.libraryRunningPoller) return;
+        clearInterval(state.libraryRunningPoller);
+        state.libraryRunningPoller = null;
+    }
+
+    async function launchLibraryGame(slug, button = null) {
+        updateLaunchButtonLoading(button);
+        try {
+            await API.launchOfflineGame(slug);
+            Components.showToast('Game launched. Playtime tracking started.', 'success');
+            markLibraryIndexDirty();
+            startLibraryRunningPoller();
+            await renderOfflineCatalog();
+        } catch (err) {
+            Components.showToast(`Launch failed: ${err.message}`, 'error');
+            markLibraryIndexDirty();
+            await renderOfflineCatalog();
+        }
+    }
+
+    async function openLibraryFolder(slug) {
+        try {
+            await API.openOfflineFolder(slug);
+        } catch (err) {
+            Components.showToast(`Folder unavailable: ${err.message}`, 'error');
+            await renderOfflineCatalog();
+        }
+    }
+
+    async function markLibraryBacklog(slug) {
+        const ok = await showConfirmDialog({
+            title: 'Mark as backlog?',
+            message: 'Arcadia will keep the game saved in My Library but remove the install folder and executable link.',
+            confirmText: 'Mark Backlog'
+        });
+        if (!ok) return;
+        try {
+            await API.updateOfflineUser(slug, { install_status: 'backlog' });
+            Components.showToast('Game marked as backlog.', 'success');
+            markLibraryIndexDirty();
+            await renderOfflineCatalog();
+        } catch (err) {
+            Components.showToast(`Update failed: ${err.message}`, 'error');
+        }
+    }
+
+    async function relinkLibraryGame(slug, currentPath = '') {
+        const folder = await chooseFolder(currentPath || elements.downloadDefaultPath?.value || '');
+        if (!folder) {
+            Components.showToast('Choose an install folder to link this game.', 'error');
+            return;
+        }
+        try {
+            const result = await API.linkOfflineGame(slug, { install_path: folder, source: 'manual' });
+            const candidates = result.detection?.candidates || [];
+            if (result.game?.library?.install_status === 'unlinked' && candidates.length) {
+                showExecutableCandidateModal(slug, folder, candidates);
+            } else if (result.game?.library?.install_status === 'installed') {
+                Components.showToast('Executable linked. Game is ready to launch.', 'success');
+                markLibraryIndexDirty();
+                await renderOfflineCatalog();
+            } else {
+                Components.showToast('Install folder linked, but no safe executable was found.', 'error');
+                markLibraryIndexDirty();
+                await renderOfflineCatalog();
+            }
+        } catch (err) {
+            Components.showToast(`Relink failed: ${err.message}`, 'error');
+        }
+    }
+
+    function showExecutableCandidateModal(slug, installPath, candidates) {
+        elements.modalContentBody.innerHTML = `
+            <div class="library-link-modal">
+                <h2 class="modal-title"><i class="fa-solid fa-link text-pink"></i> Choose Executable</h2>
+                <p class="detail-text">Arcadia found multiple possible launch files. Pick the real game executable to enable Launch.</p>
+                <div class="library-candidate-list">
+                    ${candidates.map(candidate => `
+                        <button class="library-candidate-btn" data-path="${escapeHTML(candidate.path)}">
+                            <span><strong>${escapeHTML(candidate.name)}</strong><small>${escapeHTML(candidate.relative_path)}</small></span>
+                            <small>${Math.round((candidate.size || 0) / (1024 * 1024))} MB</small>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        elements.gameModal.classList.add('active');
+        document.querySelectorAll('.library-candidate-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                try {
+                    await API.linkOfflineGame(slug, {
+                        install_path: installPath,
+                        executable_path: btn.dataset.path,
+                        source: 'manual'
+                    });
+                    elements.gameModal.classList.remove('active');
+                    Components.showToast('Executable linked. Game is ready to launch.', 'success');
+                    markLibraryIndexDirty();
+                    await renderOfflineCatalog();
+                } catch (err) {
+                    Components.showToast(`Link failed: ${err.message}`, 'error');
+                }
+            });
         });
     }
 
@@ -565,6 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadLatestRepacks() {
         showSkeleton(elements.latestContainer, 10);
         try {
+            await refreshLibraryIndex();
             const data = await API.getLatest(state.currentPage);
             renderCards(elements.latestContainer, data.games || [], 'No games found on this page.');
             state.hasLatestNext = data.has_next;
@@ -584,6 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
         switchView('search');
         elements.searchQueryHighlight.textContent = `"${state.currentQuery}"`;
         try {
+            await refreshLibraryIndex();
             const data = await API.search(state.currentQuery, state.searchPage);
             renderCards(elements.searchResultsContainer, data.games || [], 'No games match this query.');
             state.hasSearchNext = data.has_next;
@@ -734,6 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!state.galleryIndexerPoller) state.galleryIndexerPoller = setInterval(pollGalleryIndex, 2500);
             }
             const data = await API.getLibrary(state.galleryLetter, state.galleryPage, 24);
+            await refreshLibraryIndex();
             state.galleryGames = data.games || [];
             state.galleryPage = data.page || state.galleryPage;
             state.galleryTotalPages = data.total_pages || 1;
@@ -809,10 +1020,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if (!game) throw new Error('Game is not available offline.');
+            try {
+                const libraryGame = await API.getOfflineGame(slug);
+                if (libraryGame?.slug) {
+                    game = { ...game, ...libraryGame, library: libraryGame.library, offline_user: libraryGame.offline_user };
+                    if (libraryGame.library || libraryGame.offline_user) {
+                        state.libraryIndex[slug] = {
+                            library: libraryGame.library || libraryGame.offline_user,
+                            offline_user: libraryGame.offline_user || libraryGame.library
+                        };
+                        state.libraryIndexLoaded = true;
+                    }
+                }
+            } catch {
+                // The game may not be saved in My Library yet.
+            }
             elements.modalContentBody.innerHTML = Components.renderGameDetails(game);
 
             const dlBtn = document.getElementById('modal-download-btn');
             dlBtn?.addEventListener('click', async () => {
+                if (dlBtn.disabled) return;
                 dlBtn.disabled = true;
                 dlBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing...';
                 try {
@@ -832,13 +1059,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
                 try {
                     await API.saveGameOffline(slug);
-                    Components.showToast('Saved for offline library.', 'success');
+                    Components.showToast('Saved to My Library.', 'success');
+                    markLibraryIndexDirty();
+                    await openGameDetails(slug);
                 } catch (err) {
-                    Components.showToast(`Offline save failed: ${err.message}`, 'error');
+                    Components.showToast(`Library save failed: ${err.message}`, 'error');
                 } finally {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-box-archive"></i> Save Offline';
+                    btn.innerHTML = '<i class="fa-solid fa-box-archive"></i> Save to Library';
                 }
+            });
+
+            document.getElementById('modal-library-launch-btn')?.addEventListener('click', async () => {
+                await launchLibraryGame(slug, document.getElementById('modal-library-launch-btn'));
+                elements.gameModal.classList.remove('active');
+            });
+            document.getElementById('modal-library-launch-primary-btn')?.addEventListener('click', async () => {
+                await launchLibraryGame(slug, document.getElementById('modal-library-launch-primary-btn'));
+                elements.gameModal.classList.remove('active');
+            });
+            document.getElementById('modal-library-folder-btn')?.addEventListener('click', async e => {
+                if (!e.currentTarget.disabled) await openLibraryFolder(slug);
+            });
+            document.getElementById('modal-library-relink-btn')?.addEventListener('click', async () => {
+                await relinkLibraryGame(slug, game.library?.install_path || '');
             });
 
             document.getElementById('modal-check-updates-btn')?.addEventListener('click', async e => {
@@ -1094,7 +1338,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderWishlist() {
-        const wlGames = readJSON(STORAGE.wishlistGames, []);
+        const wlGames = readJSON(STORAGE.wishlistGames, []).map(mergeLibraryState);
         elements.wishlistContainer.innerHTML = '';
         if (!wlGames.length) {
             elements.wishlistContainer.innerHTML = '<div class="empty-state grid-empty-state"><i class="fa-regular fa-star"></i><p>Your wishlist is empty.</p></div>';
@@ -1189,6 +1433,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const data = await API.getTorrentStatus();
             state.lastDownloadData = data;
+            if ((data.library_enrolled || 0) > 0) markLibraryIndexDirty();
             updateNavDownloadBadge(data.downloads || []);
             if (state.activeView === 'downloads') renderDownloadsFromData(data);
         } catch (err) {
@@ -1265,9 +1510,12 @@ document.addEventListener('DOMContentLoaded', () => {
         loadOfflineStats();
         try {
             const data = await API.getOfflineCatalog();
-            renderCards(elements.catalogContainer, data.games || [], 'No offline catalog files found.');
+            indexLibraryGames(data.games || []);
+            if ((data.games || []).some(game => game.library?.running || game.offline_user?.running)) startLibraryRunningPoller();
+            else stopLibraryRunningPoller();
+            renderLibraryCards(elements.catalogContainer, data.games || [], 'My Library is empty. Completed Arcadia downloads and saved games will appear here.');
         } catch {
-            elements.catalogContainer.innerHTML = '<div class="empty-state"><p>Failed to load offline catalog.</p></div>';
+            elements.catalogContainer.innerHTML = '<div class="empty-state"><p>Failed to load My Library.</p></div>';
         }
     }
 
@@ -1276,10 +1524,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const stats = await API.getOfflineStats();
             elements.offlineStatsGrid.innerHTML = `
                 <div class="offline-stat"><span>Saved Games</span><strong>${stats.saved_games || 0}</strong></div>
-                <div class="offline-stat"><span>Source Size</span><strong>${stats.repack_total_gb || 0} GB</strong></div>
-                <div class="offline-stat"><span>Bandwidth Saved</span><strong>${stats.bandwidth_saved_gb || 0} GB</strong></div>
-                <div class="offline-stat"><span>Queue Left</span><strong>${stats.remaining_queue || 0}</strong></div>
-                <div class="offline-stat"><span>Media Cache</span><strong>${stats.media_size_mb || 0} MB</strong></div>
+                <div class="offline-stat"><span>Installed</span><strong>${stats.installed_games || 0}</strong></div>
+                <div class="offline-stat"><span>Playtime</span><strong>${Components.formatPlaytime(stats.playtime_seconds || 0)}</strong></div>
+                <div class="offline-stat"><span>Installed Size</span><strong>${stats.installed_size_gb || 0} GB</strong></div>
+                <div class="offline-stat"><span>Backlog</span><strong>${stats.backlog_games || 0}</strong></div>
             `;
         } catch {
             elements.offlineStatsGrid.innerHTML = '';
@@ -1288,6 +1536,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function switchView(viewName) {
         state.activeView = viewName;
+        document.body.classList.toggle('library-view-active', viewName === 'catalog');
         [elements.viewHome, elements.viewGallery, elements.viewNews, elements.viewSearch, elements.viewWishlist, elements.viewDownloads, elements.viewCatalog].forEach(el => el?.classList.remove('active'));
         [elements.navHome, elements.navGallery, elements.navNews, elements.navWishlist, elements.navDownloads, elements.navCatalog, elements.navHistory, elements.navUpcoming].forEach(el => el?.classList.remove('active'));
         if (viewName === 'home') {
@@ -1364,6 +1613,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.activeView === 'downloads') loadDownloads();
             if (state.activeView === 'catalog') renderOfflineCatalog();
             if (state.activeView === 'gallery') renderCards(elements.galleryContainer, state.galleryGames, 'No compatible games match.');
+        });
+        elements.libraryFilterTabs?.addEventListener('click', e => {
+            const btn = e.target.closest('.library-filter-tab');
+            if (!btn) return;
+            state.libraryFilter = btn.dataset.libraryFilter || 'playable';
+            elements.libraryFilterTabs.querySelectorAll('.library-filter-tab').forEach(tab => {
+                tab.classList.toggle('active', tab === btn);
+            });
+            renderOfflineCatalog();
         });
         elements.btnPrevPage.addEventListener('click', () => {
             if (state.currentPage > 1) {

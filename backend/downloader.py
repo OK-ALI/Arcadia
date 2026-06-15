@@ -301,6 +301,9 @@ class DownloaderManager:
     def _save_state(self):
         _write_json(STATE_FILE, self.state)
 
+    def save_state(self):
+        self._save_state()
+
 
     def _resume_path(self, info_hash: str) -> str:
         safe = re.sub(r"[^a-fA-F0-9]", "", info_hash or "") or hashlib.sha1(str(info_hash).encode("utf-8")).hexdigest()

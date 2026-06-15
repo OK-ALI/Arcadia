@@ -13,7 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
-- Latest stable release: `v0.1.6`
+- Latest stable release: `v0.2.0`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation
@@ -25,13 +25,18 @@ available:
 - Arcadia Core branding with the subtitle **A Gaming Universe**.
 - Dark mode by default with a persistent light theme toggle.
 - Expandable and resizable sidebar with collapsed icon mode.
+- v0.2.0 My Library / Own & Play support with installed-game state,
+  executable linking, launch controls, live running state, playtime tracking,
+  and installed-size stats.
 - v0.1.6 UI polish with cleaner alignments, responsive layouts, refined cards,
   modal spacing, focus states, and consistent empty/loading states.
 - Games Gallery with A-Z browsing, pagination, progressive loading, and cached
   artwork.
 - Gallery cards render quickly first, then hydrate artwork and specs in the
   background.
-- Offline catalog support with cached game metadata and media.
+- My Library support with saved games, installed-game state, executable links,
+  launch controls, running indicators, playtime metadata, installed-size
+  tracking, backlog filters, and cached media.
 - Live News tab with gaming articles, upcoming releases, and event links.
 - Source links are shown as attribution, while Arcadia branding stays separate.
 - Official game, publisher, and Steam links are shown only when confidence is
@@ -49,6 +54,8 @@ available:
   and progress.
 - Completed download rows can be removed or cleared even if the torrent engine
   later reports a stale protocol error for the source URL.
+- Completed Arcadia downloads with a catalog slug are enrolled into My Library
+  and scanned for likely launchable executables.
 - FDM-style capture review for pasted, clipboard, browser-extension, and
   `arcadia://` download links before anything starts downloading.
 - Direct HTTP/HTTPS file downloads with safe filename handling, pause/resume,
@@ -80,7 +87,7 @@ available:
 - News
 - Wishlist & Queue
 - Downloads
-- Offline Catalog
+- My Library
 - History
 - Game details modal
 - Prepare download modal
@@ -128,7 +135,7 @@ links, but they are not used as Arcadia Core branding.
 
 ## Privacy And Local Data
 
-Runtime cache, download state, resume files, offline catalog files, and cached
+Runtime cache, download state, resume files, My Library files, and cached
 artwork are stored locally under the app data folder. Capture and crash logs are
 also written under the app data folder instead of beside the executable. These
 files are excluded from the Git repository.
