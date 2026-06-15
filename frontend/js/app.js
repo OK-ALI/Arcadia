@@ -139,6 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSaveDownloadSettings: document.getElementById('btn-save-download-settings'),
         catalogContainer: document.getElementById('catalog-container'),
         offlineStatsGrid: document.getElementById('offline-stats-grid'),
+        btnImportStartMenu: document.getElementById('btn-import-start-menu'),
+        btnScanInstallFolder: document.getElementById('btn-scan-install-folder'),
         btnExportOffline: document.getElementById('btn-export-offline'),
         btnPruneMedia: document.getElementById('btn-prune-media'),
         libraryFilterTabs: document.getElementById('library-filter-tabs'),
@@ -247,6 +249,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch {
             // Manual path typing remains available when native bridge is unavailable.
+        }
+        return '';
+    }
+
+    async function chooseExecutable(initialPath = '') {
+        try {
+            if (window.pywebview?.api?.choose_executable) {
+                return await window.pywebview.api.choose_executable(initialPath || '');
+            }
+        } catch {
+            // Native file selection is available in the packaged desktop app.
+        }
+        return '';
+    }
+
+    async function chooseArtwork(initialPath = '') {
+        try {
+            if (window.pywebview?.api?.choose_artwork) {
+                return await window.pywebview.api.choose_artwork(initialPath || '');
+            }
+        } catch {
+            // Desktop bridge is available in the packaged app.
         }
         return '';
     }
@@ -590,8 +614,15 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = '';
         const byStatus = games.filter(game => {
             const status = game.library?.install_status || game.offline_user?.install_status || 'backlog';
+            const library = game.library || game.offline_user || {};
+            const path = String(library.install_path || '').toLowerCase().replace(/\//g, '\\');
+            let source = String(library.library_source || '').toLowerCase();
+            if (!['steam', 'epic'].includes(source) && path.includes('\\steamapps\\common\\')) source = 'steam';
+            if (!['steam', 'epic'].includes(source) && (path.includes('\\epic games\\') || path.includes('\\epicgames\\'))) source = 'epic';
             if (state.libraryFilter === 'all') return true;
             if (state.libraryFilter === 'playable') return ['installed', 'unlinked', 'missing'].includes(status);
+            if (state.libraryFilter === 'steam') return source === 'steam';
+            if (state.libraryFilter === 'epic') return source === 'epic';
             return status === state.libraryFilter;
         });
         const filtered = filterCompatibility(byStatus);
@@ -600,6 +631,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 playable: 'No installed or linked games yet. Backlog contains saved offline games that are not installed.',
                 installed: 'No installed games are linked yet.',
                 unlinked: 'No games need executable linking.',
+                steam: 'No Steam games imported yet.',
+                epic: 'No Epic games imported yet.',
                 backlog: 'No backlog games.',
                 all: emptyText
             };
@@ -616,6 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             card.querySelector('.library-relink')?.addEventListener('click', async () => relinkLibraryGame(game.slug, game.library?.install_path || ''));
             card.querySelector('.library-backlog')?.addEventListener('click', async () => markLibraryBacklog(game.slug));
+            card.querySelector('.library-remove')?.addEventListener('click', async () => removeLibraryGame(game.slug, game.title));
             container.appendChild(card);
         });
     }
@@ -682,6 +716,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function removeLibraryGame(slug, title = 'this game') {
+        const ok = await showConfirmDialog({
+            title: 'Remove from My Library?',
+            message: `Arcadia will remove ${title} from My Library only. Installed game files and folders will stay on disk.`,
+            confirmText: 'Remove',
+            danger: true
+        });
+        if (!ok) return;
+        try {
+            await API.removeOfflineGame(slug);
+            Components.showToast('Game removed from My Library.', 'success');
+            elements.gameModal.classList.remove('active');
+            delete state.libraryIndex[slug];
+            markLibraryIndexDirty();
+            await renderOfflineCatalog();
+            await loadOfflineStats();
+        } catch (err) {
+            Components.showToast(`Remove failed: ${err.message}`, 'error');
+        }
+    }
+
     async function relinkLibraryGame(slug, currentPath = '') {
         const folder = await chooseFolder(currentPath || elements.downloadDefaultPath?.value || '');
         if (!folder) {
@@ -698,7 +753,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 markLibraryIndexDirty();
                 await renderOfflineCatalog();
             } else {
-                Components.showToast('Install folder linked, but no safe executable was found.', 'error');
+                showExecutableCandidateModal(slug, folder, candidates);
+                Components.showToast('No safe executable was auto-detected. Choose the exact EXE if you know it.', 'error');
                 markLibraryIndexDirty();
                 await renderOfflineCatalog();
             }
@@ -707,34 +763,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function linkLibraryExecutable(slug, installPath, executablePath) {
+        await API.linkOfflineGame(slug, {
+            install_path: installPath,
+            executable_path: executablePath,
+            source: 'manual'
+        });
+        elements.gameModal.classList.remove('active');
+        Components.showToast('Executable linked. Game is ready to launch.', 'success');
+        markLibraryIndexDirty();
+        await renderOfflineCatalog();
+    }
+
     function showExecutableCandidateModal(slug, installPath, candidates) {
+        const sorted = [...(candidates || [])].sort((a, b) => Number(b.recommended || 0) - Number(a.recommended || 0));
         elements.modalContentBody.innerHTML = `
             <div class="library-link-modal">
                 <h2 class="modal-title"><i class="fa-solid fa-link text-pink"></i> Choose Executable</h2>
-                <p class="detail-text">Arcadia found multiple possible launch files. Pick the real game executable to enable Launch.</p>
+                <p class="detail-text">Arcadia found possible launch files. Pick the real game executable, or choose the exact .exe manually if the recommendation is not right.</p>
+                <div class="modal-actions library-link-actions">
+                    <button class="btn btn-secondary" id="btn-choose-exact-exe"><i class="fa-solid fa-file-circle-check"></i> Choose Exact EXE</button>
+                </div>
                 <div class="library-candidate-list">
-                    ${candidates.map(candidate => `
-                        <button class="library-candidate-btn" data-path="${escapeHTML(candidate.path)}">
-                            <span><strong>${escapeHTML(candidate.name)}</strong><small>${escapeHTML(candidate.relative_path)}</small></span>
-                            <small>${Math.round((candidate.size || 0) / (1024 * 1024))} MB</small>
+                    ${sorted.length ? sorted.map(candidate => `
+                        <button class="library-candidate-btn ${candidate.recommended ? 'recommended' : ''}" data-path="${escapeHTML(candidate.path)}">
+                            <span class="candidate-main">
+                                <strong>${escapeHTML(candidate.name)} ${candidate.recommended ? '<em>Recommended</em>' : ''}</strong>
+                                <small>${escapeHTML(candidate.relative_path)}</small>
+                                <small>${escapeHTML((candidate.reasons || []).join(' - '))}</small>
+                            </span>
+                            <span class="candidate-meta">
+                                <strong>${escapeHTML(String(candidate.confidence || 'low'))}</strong>
+                                <small>${Math.round((candidate.size || 0) / (1024 * 1024))} MB</small>
+                            </span>
                         </button>
-                    `).join('')}
+                    `).join('') : '<div class="empty-state">No safe executable candidates were found in this folder.</div>'}
                 </div>
             </div>
         `;
         elements.gameModal.classList.add('active');
+        document.getElementById('btn-choose-exact-exe')?.addEventListener('click', async () => {
+            const executable = await chooseExecutable(installPath);
+            if (!executable) {
+                Components.showToast('Choose an executable file to link this game.', 'error');
+                return;
+            }
+            try {
+                await linkLibraryExecutable(slug, installPath, executable);
+            } catch (err) {
+                Components.showToast(`Link failed: ${err.message}`, 'error');
+            }
+        });
         document.querySelectorAll('.library-candidate-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 try {
-                    await API.linkOfflineGame(slug, {
-                        install_path: installPath,
-                        executable_path: btn.dataset.path,
-                        source: 'manual'
-                    });
-                    elements.gameModal.classList.remove('active');
-                    Components.showToast('Executable linked. Game is ready to launch.', 'success');
-                    markLibraryIndexDirty();
-                    await renderOfflineCatalog();
+                    await linkLibraryExecutable(slug, installPath, btn.dataset.path);
                 } catch (err) {
                     Components.showToast(`Link failed: ${err.message}`, 'error');
                 }
@@ -1083,6 +1166,47 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             document.getElementById('modal-library-relink-btn')?.addEventListener('click', async () => {
                 await relinkLibraryGame(slug, game.library?.install_path || '');
+            });
+            document.getElementById('modal-library-artwork-btn')?.addEventListener('click', async () => {
+                const filePath = await chooseArtwork(game.library?.install_path || '');
+                if (!filePath) return;
+                try {
+                    await API.setOfflineArtwork(slug, filePath);
+                    Components.showToast('Artwork updated.', 'success');
+                    markLibraryIndexDirty();
+                    await openGameDetails(slug);
+                    await renderOfflineCatalog();
+                } catch (err) {
+                    Components.showToast(`Artwork update failed: ${err.message}`, 'error');
+                }
+            });
+            document.getElementById('modal-library-artwork-refresh-btn')?.addEventListener('click', async e => {
+                const btn = e.currentTarget;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
+                try {
+                    await API.refreshOfflineArtwork([slug]);
+                    Components.showToast('Artwork refresh complete.', 'success');
+                    markLibraryIndexDirty();
+                    await openGameDetails(slug);
+                    await renderOfflineCatalog();
+                } catch (err) {
+                    Components.showToast(`Artwork refresh failed: ${err.message}`, 'error');
+                }
+            });
+            document.getElementById('modal-library-artwork-reset-btn')?.addEventListener('click', async () => {
+                try {
+                    await API.resetOfflineArtwork(slug);
+                    Components.showToast('Artwork reset.', 'success');
+                    markLibraryIndexDirty();
+                    await openGameDetails(slug);
+                    await renderOfflineCatalog();
+                } catch (err) {
+                    Components.showToast(`Artwork reset failed: ${err.message}`, 'error');
+                }
+            });
+            document.getElementById('modal-library-remove-btn')?.addEventListener('click', async () => {
+                await removeLibraryGame(slug, game.title || 'this game');
             });
 
             document.getElementById('modal-check-updates-btn')?.addEventListener('click', async e => {
@@ -1519,6 +1643,110 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function scanStartMenuImport() {
+        const button = elements.btnImportStartMenu;
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning...';
+        }
+        try {
+            const result = await API.scanStartMenuGames();
+            showStartMenuImportModal(result.matches || [], result, 'Start Menu entries');
+        } catch (err) {
+            Components.showToast(`Start Menu scan failed: ${err.message}`, 'error');
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-magnifying-glass-location"></i> Import Installed Games';
+            }
+        }
+    }
+
+    async function scanInstallFolderImport() {
+        const folder = await chooseFolder(elements.downloadDefaultPath?.value || '');
+        if (!folder) {
+            Components.showToast('Choose a game folder or games directory to scan.', 'error');
+            return;
+        }
+        const button = elements.btnScanInstallFolder;
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning...';
+        }
+        try {
+            const result = await API.scanInstallPaths([folder]);
+            showStartMenuImportModal(result.matches || [], result, 'folders');
+        } catch (err) {
+            Components.showToast(`Folder scan failed: ${err.message}`, 'error');
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-folder-tree"></i> Scan Game Folder';
+            }
+        }
+    }
+
+    function showStartMenuImportModal(matches, summary = {}, sourceLabel = 'entries') {
+        const usable = matches.filter(item => !item.duplicate);
+        elements.modalContentBody.innerHTML = `
+            <div class="start-menu-import-modal">
+                <h2 class="modal-title"><i class="fa-solid fa-magnifying-glass-location text-pink"></i> Import Installed Games</h2>
+                <p class="detail-text">Arcadia found ${matches.length} possible installed games from ${summary.scanned || 0} scanned ${sourceLabel}. Review matches before importing.</p>
+                <div class="start-menu-import-list">
+                    ${matches.length ? matches.map((item, index) => `
+                        <label class="start-menu-import-row ${item.duplicate ? 'duplicate' : ''}">
+                            <input type="checkbox" class="start-menu-import-check" value="${index}" ${item.checked ? 'checked' : ''} ${item.duplicate ? 'disabled' : ''}>
+                            <span class="start-menu-import-main">
+                                <strong>${escapeHTML(item.matched_title || item.shortcut_name || 'Unknown Game')}</strong>
+                                <small>${escapeHTML(item.shortcut_name || '')}</small>
+                                <small title="${escapeHTML(item.target_path || '')}">${escapeHTML(item.target_path || '')}</small>
+                                ${item.warning ? `<small>${escapeHTML(item.warning)}</small>` : ''}
+                            </span>
+                            <span class="start-menu-import-meta">
+                                <strong>${escapeHTML(item.confidence || 'medium')}</strong>
+                                <small>${escapeHTML(item.import_status === 'installed' ? 'Installed' : 'Needs Link')}</small>
+                                <small>${escapeHTML(String(item.library_source || '').replace('_', ' ') || 'scan')}</small>
+                                ${item.duplicate ? '<small>Already saved</small>' : ''}
+                            </span>
+                        </label>
+                    `).join('') : '<div class="empty-state">No matching installed games were found. Arcadia only imports shortcuts it can match to known catalog games.</div>'}
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btn-cancel-start-menu-import"><i class="fa-solid fa-xmark"></i> Cancel</button>
+                    <button class="btn btn-success" id="btn-confirm-start-menu-import" ${usable.length ? '' : 'disabled'}><i class="fa-solid fa-file-import"></i> Import Selected</button>
+                </div>
+            </div>
+        `;
+        elements.gameModal.classList.add('active');
+        document.getElementById('btn-cancel-start-menu-import')?.addEventListener('click', () => {
+            elements.gameModal.classList.remove('active');
+        });
+        document.getElementById('btn-confirm-start-menu-import')?.addEventListener('click', async () => {
+            const selected = [...document.querySelectorAll('.start-menu-import-check:checked')]
+                .map(input => matches[parseInt(input.value, 10)])
+                .filter(Boolean);
+            if (!selected.length) {
+                Components.showToast('Select at least one game to import.', 'error');
+                return;
+            }
+            try {
+                const result = await API.importStartMenuGames(selected);
+                const imported = result.imported?.length || 0;
+                const errors = result.errors?.length || 0;
+                const importedSlugs = (result.imported || []).map(item => item.slug).filter(Boolean);
+                if (importedSlugs.length) {
+                    API.refreshOfflineArtwork(importedSlugs).catch(() => {});
+                }
+                elements.gameModal.classList.remove('active');
+                Components.showToast(`Imported ${imported} games${errors ? `, ${errors} failed` : ''}.`, errors ? 'error' : 'success');
+                markLibraryIndexDirty();
+                await renderOfflineCatalog();
+            } catch (err) {
+                Components.showToast(`Import failed: ${err.message}`, 'error');
+            }
+        });
+    }
+
     async function loadOfflineStats() {
         try {
             const stats = await API.getOfflineStats();
@@ -1854,6 +2082,8 @@ document.addEventListener('DOMContentLoaded', () => {
             await navigator.clipboard.writeText(JSON.stringify(data));
             Components.showToast('Offline export copied to clipboard.', 'success');
         });
+        elements.btnImportStartMenu?.addEventListener('click', scanStartMenuImport);
+        elements.btnScanInstallFolder?.addEventListener('click', scanInstallFolderImport);
         elements.btnPruneMedia.addEventListener('click', async () => {
             const result = await API.pruneOfflineMedia();
             Components.showToast(`Pruned ${result.removed || 0} unused media files.`, 'success');

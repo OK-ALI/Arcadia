@@ -52,6 +52,27 @@ EXCLUDED_NAME_PARTS = {
     "dxsetup",
 }
 
+PREFERRED_DIR_PARTS = {
+    "bin",
+    "binaries",
+    "win64",
+    "win32",
+    "x64",
+    "shipping",
+    "game",
+}
+
+HELPER_NAME_PARTS = {
+    "launcher",
+    "helper",
+    "config",
+    "settings",
+    "tool",
+    "editor",
+    "server",
+    "dedicated",
+}
+
 
 def _tokens(value: str) -> set[str]:
     cleaned = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower())
@@ -73,33 +94,63 @@ def _is_excluded(path: str, root: str) -> bool:
     return any(part in name for part in EXCLUDED_NAME_PARTS)
 
 
-def _score(path: str, root: str, title: str = "", slug: str = "") -> int:
+def _score_details(path: str, root: str, title: str = "", slug: str = "") -> dict[str, Any]:
     rel = os.path.relpath(path, root)
     depth = len(Path(rel).parts)
     name = os.path.splitext(os.path.basename(path))[0]
+    name_l = name.lower()
+    rel_l = rel.replace("\\", "/").lower()
     name_tokens = _tokens(name)
     wanted = _tokens(title) | _tokens(slug)
 
     score = 40
+    reasons: list[str] = []
     if wanted and name_tokens:
         overlap = len(name_tokens & wanted)
-        score += min(35, overlap * 12)
-        if name.lower().replace(" ", "-") in str(slug or "").lower():
+        if overlap:
+            score += min(38, overlap * 13)
+            reasons.append("matches game title")
+        compact_name = re.sub(r"[^a-z0-9]+", "", name_l)
+        compact_slug = re.sub(r"[^a-z0-9]+", "", str(slug or "").lower())
+        if compact_name and compact_slug and (compact_name in compact_slug or compact_slug in compact_name):
             score += 12
-    score += max(0, 18 - depth * 4)
+            reasons.append("matches catalog slug")
+    root_bonus = max(0, 18 - depth * 4)
+    score += root_bonus
+    if depth <= 2:
+        reasons.append("near install root")
+    if any(part in rel_l for part in PREFERRED_DIR_PARTS):
+        score += 8
+        reasons.append("inside game binary folder")
     try:
         size_mb = os.path.getsize(path) / (1024 * 1024)
     except OSError:
         size_mb = 0
     if size_mb >= 50:
         score += 18
+        reasons.append("large game executable")
     elif size_mb >= 10:
         score += 10
+        reasons.append("normal executable size")
     elif size_mb < 2:
         score -= 12
-    if "win64" in rel.lower() or "x64" in rel.lower():
+        reasons.append("very small helper-sized file")
+    if "win64" in rel_l or "x64" in rel_l:
         score += 4
-    return score
+        reasons.append("64-bit build")
+    if any(part in name_l for part in HELPER_NAME_PARTS):
+        score -= 18
+        reasons.append("launcher/helper naming")
+    confidence = "low"
+    if score >= 78:
+        confidence = "high"
+    elif score >= 62:
+        confidence = "medium"
+    return {
+        "score": score,
+        "confidence": confidence,
+        "reasons": reasons[:4] or ["safe executable candidate"],
+    }
 
 
 def detect_executables(
@@ -131,12 +182,15 @@ def detect_executables(
                 size = os.path.getsize(path)
             except OSError:
                 size = 0
+            score_details = _score_details(path, root, title, slug)
             candidates.append({
                 "path": path,
                 "name": filename,
                 "relative_path": os.path.relpath(path, root),
                 "size": size,
-                "score": _score(path, root, title, slug),
+                "score": score_details["score"],
+                "confidence": score_details["confidence"],
+                "reasons": score_details["reasons"],
             })
 
     candidates.sort(key=lambda item: (-int(item["score"]), len(item["relative_path"]), item["name"].lower()))
@@ -154,6 +208,8 @@ def detect_executables(
             confidence = "medium"
         else:
             confidence = "multiple"
+        if candidates:
+            candidates[0]["recommended"] = True
 
     return {
         "install_path": root,

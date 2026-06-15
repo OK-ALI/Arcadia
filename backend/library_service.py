@@ -14,7 +14,7 @@ from typing import Any
 from backend import scraper
 from backend.executable_detector import detect_executables
 from backend.game_launcher import get_launch_session, launch_executable
-from backend.offline_library import library as offline_library
+from backend.offline_library import _folder_size_bytes, library as offline_library
 
 
 INSTALL_FIELDS = {
@@ -22,10 +22,19 @@ INSTALL_FIELDS = {
     "install_path",
     "executable_path",
     "executable_candidates",
+    "install_size_bytes",
+    "install_size_scanned_at",
     "last_played_at",
     "playtime_seconds",
     "launch_count",
     "library_source",
+    "artwork_source",
+    "artwork_path",
+    "manual_artwork_path",
+    "platform_app_id",
+    "epic_catalog_item_id",
+    "epic_namespace",
+    "epic_app_name",
 }
 
 
@@ -46,10 +55,19 @@ def _ensure_user(entry: dict[str, Any], source: str = "saved") -> dict[str, Any]
     user.setdefault("install_path", "")
     user.setdefault("executable_path", "")
     user.setdefault("executable_candidates", [])
+    user.setdefault("install_size_bytes", 0)
+    user.setdefault("install_size_scanned_at", None)
     user.setdefault("last_played_at", None)
     user.setdefault("playtime_seconds", 0)
     user.setdefault("launch_count", 0)
     user.setdefault("library_source", source)
+    user.setdefault("artwork_source", "")
+    user.setdefault("artwork_path", "")
+    user.setdefault("manual_artwork_path", "")
+    user.setdefault("platform_app_id", "")
+    user.setdefault("epic_catalog_item_id", "")
+    user.setdefault("epic_namespace", "")
+    user.setdefault("epic_app_name", "")
     return user
 
 
@@ -61,6 +79,11 @@ def _public_entry(entry: dict[str, Any]) -> dict[str, Any]:
     if game.get("cover_cached"):
         game["cover"] = game["cover_cached"]
         game["thumbnail"] = game.get("thumbnail_cached") or game["cover_cached"]
+    artwork_path = user.get("manual_artwork_path") or user.get("artwork_path") or ""
+    if artwork_path:
+        game["cover"] = artwork_path
+        game["thumbnail"] = artwork_path
+    game["artwork_source"] = user.get("artwork_source") or ("arcadia_cache" if game.get("cover_cached") else "placeholder")
     game["offline_user"] = user
     game["offline_saved_at"] = entry.get("saved_at")
     game["offline_updated_at"] = entry.get("updated_at")
@@ -73,10 +96,29 @@ def _public_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "playtime_seconds": int(user.get("playtime_seconds") or 0),
         "launch_count": int(user.get("launch_count") or 0),
         "library_source": user.get("library_source", "saved"),
+        "artwork_source": user.get("artwork_source") or game.get("artwork_source"),
+        "artwork_path": user.get("manual_artwork_path") or user.get("artwork_path", ""),
+        "manual_artwork_path": user.get("manual_artwork_path", ""),
+        "platform_app_id": user.get("platform_app_id", ""),
+        "epic_catalog_item_id": user.get("epic_catalog_item_id", ""),
+        "epic_namespace": user.get("epic_namespace", ""),
+        "epic_app_name": user.get("epic_app_name", ""),
         "running": bool(session),
         "running_pid": session.get("pid") if session else None,
         "running_started_at": session.get("started_at") if session else None,
     }
+    install_path = user.get("install_path") or ""
+    if user.get("install_status") == "installed" and install_path:
+        install_size = int(user.get("install_size_bytes") or 0)
+        if install_size <= 0:
+            install_size = _folder_size_bytes(install_path)
+        game["library"]["installed_size_bytes"] = install_size
+        game["library"]["installed_size_gb"] = round(install_size / (1024**3), 2)
+        game["library"]["installed_size_scanned_at"] = user.get("install_size_scanned_at")
+    else:
+        game["library"]["installed_size_bytes"] = 0
+        game["library"]["installed_size_gb"] = 0
+        game["library"]["installed_size_scanned_at"] = None
     return game
 
 
@@ -106,6 +148,16 @@ def get_game(slug: str) -> dict[str, Any] | None:
     return _public_entry(entry)
 
 
+def remove_game(slug: str) -> dict[str, Any]:
+    entry = _entry(slug)
+    if not entry:
+        raise ValueError("Game is not saved in My Library.")
+    title = (entry.get("game") or {}).get("title") or slug
+    del offline_library.state["games"][slug]
+    offline_library._save()
+    return {"success": True, "slug": slug, "title": title}
+
+
 def save_game(game: dict[str, Any], source: str = "saved") -> dict[str, Any]:
     entry = offline_library.save_game(game)
     user = _ensure_user(entry, source)
@@ -127,10 +179,19 @@ def update_user_data(slug: str, data: dict[str, Any]) -> dict[str, Any]:
         "install_path",
         "executable_path",
         "executable_candidates",
+        "install_size_bytes",
+        "install_size_scanned_at",
         "last_played_at",
         "playtime_seconds",
         "launch_count",
         "library_source",
+        "artwork_source",
+        "artwork_path",
+        "manual_artwork_path",
+        "platform_app_id",
+        "epic_catalog_item_id",
+        "epic_namespace",
+        "epic_app_name",
     }
     for key in allowed:
         if key in data:
@@ -167,7 +228,12 @@ def link_game(slug: str, install_path: str, executable_path: str | None = None, 
 
     user["install_path"] = detected["install_path"]
     user["executable_candidates"] = detected.get("candidates", [])
-    user["library_source"] = user.get("library_source") or source
+    if source and source not in {"manual", "saved"}:
+        user["library_source"] = source
+    else:
+        user["library_source"] = user.get("library_source") or source
+    user["install_size_bytes"] = _folder_size_bytes(detected["install_path"])
+    user["install_size_scanned_at"] = _now()
     if selected:
         user["executable_path"] = selected
         user["install_status"] = "installed"
@@ -191,6 +257,8 @@ def mark_backlog(slug: str) -> dict[str, Any]:
     user["install_path"] = ""
     user["executable_path"] = ""
     user["executable_candidates"] = []
+    user["install_size_bytes"] = 0
+    user["install_size_scanned_at"] = None
     entry["updated_at"] = _now()
     offline_library._save()
     return entry

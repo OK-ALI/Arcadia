@@ -207,6 +207,10 @@ const API = {
         return this._request(`/api/offline/game/${slug}`);
     },
 
+    async removeOfflineGame(slug) {
+        return this._request(`/api/offline/game/${slug}`, { method: 'DELETE' });
+    },
+
     async saveGameOffline(slug) {
         return this._request(`/api/offline/save/${slug}`, { method: 'POST' });
     },
@@ -237,6 +241,46 @@ const API = {
 
     async openOfflineFolder(slug) {
         return this._request(`/api/offline/open-folder/${slug}`, { method: 'POST' });
+    },
+
+    async scanStartMenuGames() {
+        return this._request('/api/offline/start-menu/scan');
+    },
+
+    async scanInstallPaths(paths) {
+        return this._request('/api/offline/install-path/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths })
+        });
+    },
+
+    async importStartMenuGames(items) {
+        return this._request('/api/offline/start-menu/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+    },
+
+    async refreshOfflineArtwork(slugs = []) {
+        return this._request('/api/offline/artwork/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slugs })
+        });
+    },
+
+    async setOfflineArtwork(slug, filePath) {
+        return this._request(`/api/offline/artwork/${slug}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_path: filePath })
+        });
+    },
+
+    async resetOfflineArtwork(slug) {
+        return this._request(`/api/offline/artwork/${slug}`, { method: 'DELETE' });
     },
 
     async exportOfflineData() {

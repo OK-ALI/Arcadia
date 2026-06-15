@@ -8,4 +8,5 @@ libtorrent-windows-dll==0.0.3
 pystray==0.19.5
 pillow==12.2.0
 pyinstaller==6.20.0
+pywin32==306
 

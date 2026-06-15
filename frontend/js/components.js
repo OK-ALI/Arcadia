@@ -146,6 +146,7 @@ const Components = {
         const comp = this.getCompatibility(game.requirements);
         const library = game.library || game.offline_user || null;
         const libraryStatus = library ? this.libraryStatus(library) : null;
+        const artworkSource = this.escape(library?.artwork_source || game.artwork_source || 'placeholder');
         if (libraryStatus && libraryStatus.className !== 'backlog') card.classList.add(`library-${libraryStatus.className}`);
         const badgeHTML = comp ? `<div class="card-compatibility-badge ${comp.status}">${this.escape(comp.label)}</div>` : '';
         const libraryBadgeHTML = libraryStatus && libraryStatus.className !== 'backlog' ? `
@@ -194,6 +195,15 @@ const Components = {
         return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
     },
 
+    formatStorage(bytes = 0, gb = 0) {
+        const rawBytes = Number(bytes) || 0;
+        const rawGb = Number(gb) || 0;
+        if (rawBytes <= 0 && rawGb <= 0) return 'Not scanned';
+        const valueGb = rawBytes > 0 ? rawBytes / (1024 ** 3) : rawGb;
+        if (valueGb >= 1) return `${valueGb.toFixed(valueGb >= 100 ? 0 : 2)} GB`;
+        return `${Math.max(1, Math.round(valueGb * 1024))} MB`;
+    },
+
     libraryStatus(library = {}) {
         if (library.running) return { label: 'Running', icon: 'fa-spinner fa-spin', className: 'running' };
         const status = String(library.install_status || 'backlog');
@@ -201,6 +211,21 @@ const Components = {
         if (status === 'unlinked') return { label: 'Needs Link', icon: 'fa-link-slash', className: 'unlinked' };
         if (status === 'missing') return { label: 'Missing', icon: 'fa-triangle-exclamation', className: 'missing' };
         return { label: 'Backlog', icon: 'fa-bookmark', className: 'backlog' };
+    },
+
+    librarySourceLabel(game = {}, library = {}) {
+        const source = String(library.library_source || '').toLowerCase();
+        const installPath = String(library.install_path || '').toLowerCase().replace(/\//g, '\\');
+        if (source === 'steam') return 'Steam Library';
+        if (source === 'epic') return 'Epic Games';
+        if (source === 'folder_scan') return 'Local Install';
+        if (source === 'start_menu') return 'Windows Shortcut';
+        if (source === 'arcadia_download') return 'Arcadia Download';
+        if (installPath.includes('\\steamapps\\common\\')) return 'Steam Library';
+        if (installPath.includes('\\epic games\\') || installPath.includes('\\epicgames\\')) return 'Epic Games';
+        if (library.install_status === 'installed' && installPath && ['saved', 'manual', ''].includes(source)) return 'Local Install';
+        if (String(game.slug || '').startsWith('local-')) return 'Local Game';
+        return game.category || source || 'My Library';
     },
 
     createLibraryCard(game) {
@@ -213,28 +238,36 @@ const Components = {
         const launchIcon = library.running ? 'fa-spinner fa-spin' : 'fa-play';
         const playtime = this.formatPlaytime(library.playtime_seconds);
         const lastPlayed = library.last_played_at ? new Date(library.last_played_at * 1000).toLocaleDateString() : 'Never';
+        const installedSize = this.formatStorage(library.installed_size_bytes, library.installed_size_gb);
+        const installedSizeHTML = library.install_status === 'installed' ? `
+            <div class="library-size-line"><span>Installed Size</span><strong>${this.escape(installedSize)}</strong></div>
+        ` : '';
         const card = document.createElement('article');
         card.className = `library-card ${status.className}`;
         card.dataset.slug = game.slug || '';
+        card.tabIndex = 0;
         card.innerHTML = `
             <div class="library-art">
-                <img src="${this.escape(coverImg)}" alt="${safeTitle}" loading="lazy" onerror="this.src='${this.fallbackCover}'">
+                <img class="library-art-backdrop" src="${this.escape(coverImg)}" alt="" loading="lazy" aria-hidden="true" onerror="this.src='${this.fallbackCover}'">
+                <img class="library-art-main" src="${this.escape(coverImg)}" alt="${safeTitle}" loading="lazy" onerror="this.src='${this.fallbackCover}'">
                 <span class="library-status-pill ${status.className}"><i class="fa-solid ${status.icon}"></i> ${status.label}</span>
+                <div class="library-card-actions" aria-label="Library actions">
+                    <button class="btn btn-success library-launch ${library.running ? 'is-running' : ''}" ${canLaunch ? '' : 'disabled'} title="${library.running ? 'Game is running' : (canLaunch ? 'Launch game' : 'Link executable first')}" aria-label="${library.running ? 'Game is running' : (canLaunch ? `Launch ${safeTitle}` : 'Link executable first')}">
+                        <i class="fa-solid ${launchIcon}"></i><span>${launchLabel}</span>
+                    </button>
+                    <button class="icon-btn library-open-folder" title="Open install folder" aria-label="Open install folder" ${library.install_path ? '' : 'disabled'}><i class="fa-solid fa-folder-open"></i></button>
+                    <button class="icon-btn library-relink" title="Relink executable" aria-label="Relink executable"><i class="fa-solid fa-link"></i></button>
+                    <button class="icon-btn library-backlog" title="Mark backlog" aria-label="Mark backlog"><i class="fa-solid fa-bookmark"></i></button>
+                    <button class="icon-btn danger library-remove" title="Remove from My Library" aria-label="Remove from My Library"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
             </div>
             <div class="library-body">
-                <span class="card-category">${this.escape(game.category || library.library_source || 'My Library')}</span>
+                <span class="card-category">${this.escape(this.librarySourceLabel(game, library))}</span>
                 <h3 class="card-title" title="${safeTitle}">${safeTitle}</h3>
+                ${installedSizeHTML}
                 <div class="library-metrics">
                     <span><strong>${this.escape(playtime)}</strong><small>Playtime</small></span>
                     <span><strong>${this.escape(lastPlayed)}</strong><small>Last played</small></span>
-                </div>
-                <div class="library-actions">
-                    <button class="btn btn-success library-launch ${library.running ? 'is-running' : ''}" ${canLaunch ? '' : 'disabled'} title="${library.running ? 'Game is running' : (canLaunch ? 'Launch game' : 'Link executable first')}">
-                        <i class="fa-solid ${launchIcon}"></i> ${launchLabel}
-                    </button>
-                    <button class="icon-btn library-open-folder" title="Open install folder" ${library.install_path ? '' : 'disabled'}><i class="fa-solid fa-folder-open"></i></button>
-                    <button class="icon-btn library-relink" title="Relink executable"><i class="fa-solid fa-link"></i></button>
-                    <button class="icon-btn library-backlog" title="Mark backlog"><i class="fa-solid fa-bookmark"></i></button>
                 </div>
             </div>
         `;
@@ -309,6 +342,7 @@ const Components = {
         const comp = this.getCompatibility(game.requirements);
         const library = game.library || game.offline_user || null;
         const libraryStatus = library ? this.libraryStatus(library) : null;
+        const artworkSource = this.escape(library?.artwork_source || game.artwork_source || 'placeholder');
         const isInstalledLinked = Boolean(library?.install_status === 'installed' && library?.executable_path);
         const canLaunchLibrary = Boolean(library?.install_status === 'installed' && library?.executable_path && !library?.running);
         const libraryRunning = Boolean(library?.running);
@@ -510,12 +544,18 @@ const Components = {
                 <div class="library-detail-grid">
                     <div><span>Playtime</span><strong>${this.escape(this.formatPlaytime(library.playtime_seconds))}</strong></div>
                     <div><span>Last Played</span><strong>${library.last_played_at ? new Date(library.last_played_at * 1000).toLocaleDateString() : 'Never'}</strong></div>
+                    <div><span>Installed Size</span><strong>${this.escape(this.formatStorage(library.installed_size_bytes, library.installed_size_gb))}</strong></div>
+                    <div><span>Artwork</span><strong>${artworkSource}</strong></div>
                     <div><span>Install Folder</span><strong title="${this.escape(library.install_path || '')}">${this.escape(library.install_path || 'Not linked')}</strong></div>
                 </div>
                 <div class="modal-actions library-detail-actions">
                     <button id="modal-library-launch-btn" class="btn btn-success ${library.running ? 'is-running' : ''}" ${library.install_status === 'installed' && library.executable_path && !library.running ? '' : 'disabled'}><i class="fa-solid ${library.running ? 'fa-spinner fa-spin' : 'fa-play'}"></i> ${library.running ? 'Running' : 'Launch'}</button>
                     <button id="modal-library-folder-btn" class="btn btn-secondary" ${library.install_path ? '' : 'disabled'}><i class="fa-solid fa-folder-open"></i> Open Folder</button>
                     <button id="modal-library-relink-btn" class="btn btn-secondary"><i class="fa-solid fa-link"></i> Relink Executable</button>
+                    <button id="modal-library-artwork-btn" class="btn btn-secondary"><i class="fa-solid fa-image"></i> Change Artwork</button>
+                    <button id="modal-library-artwork-refresh-btn" class="btn btn-secondary"><i class="fa-solid fa-wand-magic-sparkles"></i> Refresh Artwork</button>
+                    <button id="modal-library-artwork-reset-btn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset Artwork</button>
+                    <button id="modal-library-remove-btn" class="btn btn-danger"><i class="fa-solid fa-trash-can"></i> Remove from Library</button>
                 </div>
             </div>
         ` : '';

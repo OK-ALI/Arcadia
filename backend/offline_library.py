@@ -120,6 +120,22 @@ class OfflineLibrary:
         except Exception:
             return url
 
+    def cache_artwork_url(self, slug: str, url: str) -> str:
+        return self._cache_url(slug, url)
+
+    def cache_artwork_file(self, slug: str, path: str) -> str:
+        if not path or not os.path.isfile(path):
+            raise ValueError("Artwork file does not exist.")
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+            raise ValueError("Artwork must be a JPG, PNG, or WEBP image.")
+        folder = os.path.join(MEDIA_DIR, _safe_name(slug))
+        os.makedirs(folder, exist_ok=True)
+        target = os.path.join(folder, f"manual-artwork{ext}")
+        shutil.copy2(path, target)
+        rel = os.path.relpath(target, DATA_DIR).replace("\\", "/")
+        return f"/api/offline/media/{rel}"
+
     def save_game(self, game: dict[str, Any], cache_media: bool | None = None) -> dict[str, Any]:
         if not game or not game.get("slug"):
             raise ValueError("Cannot save game without a slug.")
@@ -153,10 +169,19 @@ class OfflineLibrary:
                 "install_path": metadata.get("install_path", ""),
                 "executable_path": metadata.get("executable_path", ""),
                 "executable_candidates": metadata.get("executable_candidates", []),
+                "install_size_bytes": metadata.get("install_size_bytes", 0),
+                "install_size_scanned_at": metadata.get("install_size_scanned_at"),
                 "last_played_at": metadata.get("last_played_at"),
                 "playtime_seconds": metadata.get("playtime_seconds", 0),
                 "launch_count": metadata.get("launch_count", 0),
                 "library_source": metadata.get("library_source", "saved"),
+                "artwork_source": metadata.get("artwork_source", ""),
+                "artwork_path": metadata.get("artwork_path", ""),
+                "manual_artwork_path": metadata.get("manual_artwork_path", ""),
+                "platform_app_id": metadata.get("platform_app_id", ""),
+                "epic_catalog_item_id": metadata.get("epic_catalog_item_id", ""),
+                "epic_namespace": metadata.get("epic_namespace", ""),
+                "epic_app_name": metadata.get("epic_app_name", ""),
             },
             "saved_at": current.get("saved_at") or time.time(),
             "updated_at": time.time(),
@@ -202,10 +227,19 @@ class OfflineLibrary:
             "install_path",
             "executable_path",
             "executable_candidates",
+            "install_size_bytes",
+            "install_size_scanned_at",
             "last_played_at",
             "playtime_seconds",
             "launch_count",
             "library_source",
+            "artwork_source",
+            "artwork_path",
+            "manual_artwork_path",
+            "platform_app_id",
+            "epic_catalog_item_id",
+            "epic_namespace",
+            "epic_app_name",
         ):
             if key in data:
                 user[key] = data[key]
@@ -220,22 +254,27 @@ class OfflineLibrary:
         installed_games = 0
         backlog_games = 0
         install_paths: set[str] = set()
+        installed_size = 0
         playtime_seconds = 0
         for entry in self.state.get("games", {}).values():
             user = entry.get("user", {})
             install_status = user.get("install_status") or "backlog"
             if install_status == "installed":
                 installed_games += 1
-                install_path = user.get("install_path") or ""
-                if install_path:
-                    try:
-                        install_paths.add(str(Path(install_path).resolve()).lower())
-                    except (OSError, RuntimeError):
-                        pass
+                cached_size = int(user.get("install_size_bytes") or 0)
+                if cached_size > 0:
+                    installed_size += cached_size
+                else:
+                    install_path = user.get("install_path") or ""
+                    if install_path:
+                        try:
+                            install_paths.add(str(Path(install_path).resolve()).lower())
+                        except (OSError, RuntimeError):
+                            pass
             elif install_status == "backlog":
                 backlog_games += 1
             playtime_seconds += int(user.get("playtime_seconds") or 0)
-        installed_size = sum(_folder_size_bytes(path) for path in install_paths)
+        installed_size += sum(_folder_size_bytes(path) for path in install_paths)
         downloaded = [d for d in (downloads or []) if d.get("status") == "completed"]
         remaining = [d for d in (downloads or []) if d.get("status") not in {"completed", "removed"}]
         media_files = 0

@@ -356,6 +356,8 @@
                             <p>Saved and installed games, launch links, playtime, local media, and storage planning.</p>
                         </div>
                         <div class="offline-actions">
+                            <button class="btn btn-secondary" id="btn-import-start-menu" title="Find installed games from Windows Start Menu shortcuts"><i class="fa-solid fa-magnifying-glass-location"></i> Import Installed Games</button>
+                            <button class="btn btn-secondary" id="btn-scan-install-folder" title="Choose a game folder or games directory to scan"><i class="fa-solid fa-folder-tree"></i> Scan Game Folder</button>
                             <button class="btn btn-secondary" id="btn-export-offline" title="Copy a backup of My Library and download state"><i class="fa-solid fa-file-export"></i> Backup Library</button>
                             <button class="btn btn-secondary" id="btn-prune-media" title="Remove cached artwork that is no longer used"><i class="fa-solid fa-scissors"></i> Clean Unused Artwork</button>
                         </div>
@@ -365,6 +367,8 @@
                         <button class="library-filter-tab active" data-library-filter="playable">Playable</button>
                         <button class="library-filter-tab" data-library-filter="installed">Installed</button>
                         <button class="library-filter-tab" data-library-filter="unlinked">Needs Link</button>
+                        <button class="library-filter-tab" data-library-filter="steam">Steam</button>
+                        <button class="library-filter-tab" data-library-filter="epic">Epic</button>
                         <button class="library-filter-tab" data-library-filter="backlog">Backlog</button>
                         <button class="library-filter-tab" data-library-filter="all">All</button>
                     </div>

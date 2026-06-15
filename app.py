@@ -182,6 +182,38 @@ class NativeBridge:
         except Exception:
             return ""
 
+    def choose_executable(self, initial_dir: str = ""):
+        """Open a native file picker restricted to Windows executables."""
+        try:
+            directory = initial_dir if initial_dir and os.path.isdir(initial_dir) else os.path.expanduser("~")
+            result = webview.windows[0].create_file_dialog(
+                webview.OPEN_DIALOG,
+                directory=directory,
+                allow_multiple=False,
+                file_types=("Executable (*.exe)", "All files (*.*)"),
+            )
+            if isinstance(result, (list, tuple)) and result:
+                return result[0]
+            return result or ""
+        except Exception:
+            return ""
+
+    def choose_artwork(self, initial_dir: str = ""):
+        """Open a native file picker for game artwork images."""
+        try:
+            directory = initial_dir if initial_dir and os.path.isdir(initial_dir) else os.path.expanduser("~")
+            result = webview.windows[0].create_file_dialog(
+                webview.OPEN_DIALOG,
+                directory=directory,
+                allow_multiple=False,
+                file_types=("Images (*.jpg;*.jpeg;*.png;*.webp)", "All files (*.*)"),
+            )
+            if isinstance(result, (list, tuple)) and result:
+                return result[0]
+            return result or ""
+        except Exception:
+            return ""
+
 
 def focus_existing_instance(url: str = None, timeout: float = 1.5) -> bool:
     try:

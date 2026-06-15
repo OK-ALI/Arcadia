@@ -41,6 +41,26 @@ large catalog operations are paginated, artwork/spec checks are hydrated in the
 background, destructive download actions require confirmation, and battery-aware
 download pausing protects laptop users.
 
+## Current Roadmap Status
+
+The current planning source of truth is
+`docs/Arcadia_Core_Complete_Master_Roadmap.md`.
+
+- `v0.1.x` shipped the Discover & Download foundation.
+- `v0.1.5` shipped download path, capture, icon, and stale completed-download
+  fixes.
+- `v0.1.6` shipped the UI polish and packaging identity release.
+- `v0.2.0` shipped the Own & Play MVP and is stable after user testing.
+- `v0.2.1` shipped Smart Relink & Executable Detection.
+- `v0.2.2` is the latest stable release with Installed Game Import, hover
+  Library cards, platform/local artwork hydration, and library removal.
+- `v0.3.x` is planned for Identity, Polish & Personalize work: naming polish,
+  themes, optional soundtrack experience, collections, journal, save
+  management, dashboards, and advanced filters.
+- `v0.4.x` is planned for Discovery & Source Intelligence.
+- `v0.5.x` is planned for Download Ecosystem & Production Hardening before
+  `v1.0.x`.
+
 ## Technology Stack
 
 ### Backend
@@ -64,6 +84,9 @@ download pausing protects laptop users.
 - Responsive desktop-style UI
 - v0.2.0 My Library / Own & Play UI with playable/backlog filters, launch
   buttons, running indicators, playtime display, and installed-size stats
+- v0.2.2 My Library hover/focus card actions, full-artwork card presentation,
+  Start Menu, Steam, Epic, local-only installed-game import review, and manual
+  game-folder scanning
 - v0.1.6 polished alignment, sidebar resizing, card grids, modals, responsive
   wrapping, focus states, and empty/loading states
 - LocalStorage for persistent UI preferences
@@ -126,6 +149,26 @@ priority is:
 
 Artwork is cached locally when available so future sessions can load the gallery
 more quickly.
+
+For My Library imports, Arcadia also resolves platform and local artwork:
+
+- Steam imports use the local Steam app ID and public Steam CDN artwork.
+- Epic imports use local Epic manifest metadata for a best-effort public artwork
+  lookup.
+- Matched Arcadia catalog entries can reuse existing cached Arcadia artwork.
+- Catalog artwork matching uses cleaned title and slug comparison so local
+  imports can match entries with edition/version text differences.
+- Local-only games can use manual artwork selected from game details.
+- Manual artwork is copied into Arcadia app data so cards remain stable even if
+  the original image is moved.
+- Game details show the current artwork source: Steam, Epic, Arcadia cache,
+  Manual, or Placeholder.
+
+## My Library Removal
+
+Games can be removed from My Library from the card hover actions or game details.
+This removes the Arcadia library entry only. Installed game folders, executables,
+and downloaded files are not deleted by this action.
 
 ## Game Details
 
@@ -310,6 +353,16 @@ The UI is designed around a gaming hub identity:
 - Tooltip-friendly collapsed navigation.
 - Responsive downloader controls.
 - My Library cards with installed, backlog, missing, and link-needed states.
+- My Library cards reveal Launch, Open Folder, Relink, and Backlog actions on
+  hover/focus instead of showing permanent action toggles.
+- Start Menu import scans Windows shortcuts, resolves executable targets,
+  filters non-game utilities, and asks for review before importing matches.
+- Manual folder import lets users choose a game folder or parent games
+  directory when Start Menu shortcuts do not expose the installed game.
+- Steam and Epic imports read local launcher manifests and show detected games
+  in the same confirmation modal before adding them to My Library.
+- Imported Steam/Epic games are labeled by platform source and can be filtered
+  separately in My Library.
 - Styled confirmation dialogs.
 - Persistent theme and sidebar preferences.
 

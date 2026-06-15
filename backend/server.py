@@ -10,7 +10,7 @@ import sys
 from typing import Callable
 
 from backend.config import DATA_DIR, FRONTEND_DIR, HOST, PORT
-from backend import scraper, cache as app_cache, system, news, library_service
+from backend import scraper, cache as app_cache, system, news, library_service, start_menu_importer, artwork_service
 from backend.downloader import manager as downloader_manager
 from backend.download_capture import parse_bool, probe_url, validate_capture_url
 from backend.offline_library import library as offline_library
@@ -617,13 +617,17 @@ def api_offline_save(slug):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/offline/game/<slug>")
+@app.route("/api/offline/game/<slug>", methods=["GET", "DELETE"])
 def api_offline_game(slug):
     try:
+        if request.method == "DELETE":
+            return jsonify(library_service.remove_game(slug))
         game = library_service.get_game(slug)
         if not game:
             return jsonify({"error": "Offline game not found"}), 404
         return jsonify(game)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -672,6 +676,72 @@ def api_offline_launch(slug):
 def api_offline_open_folder(slug):
     try:
         return jsonify(library_service.open_install_folder(slug))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/start-menu/scan")
+def api_offline_start_menu_scan():
+    try:
+        return jsonify(start_menu_importer.scan_start_menu())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/start-menu/import", methods=["POST"])
+def api_offline_start_menu_import():
+    try:
+        payload = request.get_json(force=True)
+        items = payload.get("items") if isinstance(payload, dict) else []
+        if not isinstance(items, list):
+            return jsonify({"error": "Import items must be a list."}), 400
+        return jsonify(start_menu_importer.import_matches(items))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/install-path/scan", methods=["POST"])
+def api_offline_install_path_scan():
+    try:
+        payload = request.get_json(force=True)
+        paths = payload.get("paths") if isinstance(payload, dict) else []
+        if isinstance(paths, str):
+            paths = [paths]
+        if not isinstance(paths, list):
+            return jsonify({"error": "Scan paths must be a list."}), 400
+        return jsonify(start_menu_importer.scan_install_paths(paths))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/artwork/refresh", methods=["POST"])
+def api_offline_artwork_refresh():
+    try:
+        payload = request.get_json(silent=True) or {}
+        slugs = payload.get("slugs") if isinstance(payload, dict) else None
+        if slugs is not None and not isinstance(slugs, list):
+            return jsonify({"error": "slugs must be a list."}), 400
+        return jsonify(artwork_service.refresh_artwork(slugs))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/offline/artwork/<slug>", methods=["POST", "DELETE"])
+def api_offline_artwork(slug):
+    try:
+        if request.method == "DELETE":
+            return jsonify(artwork_service.reset_artwork(slug))
+        payload = request.get_json(force=True)
+        file_path = payload.get("file_path", "") if isinstance(payload, dict) else ""
+        return jsonify(artwork_service.set_manual_artwork(slug, file_path))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
