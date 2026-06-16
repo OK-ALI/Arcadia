@@ -4,13 +4,13 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.2.0
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.0
 
 ## Project Overview
 
 Arcadia Core is a Windows desktop gaming hub designed to bring game discovery,
 catalog browsing, live gaming news, system compatibility checks, offline
-metadata storage, and built-in download management into one polished application.
+metadata storage, and Arcadia Downloader into one polished application.
 Downloads can come from prepared torrent metadata, direct HTTP/HTTPS files,
 captured browser downloads, pasted links, clipboard detection, or the
 `arcadia://` custom protocol.
@@ -52,11 +52,11 @@ The current planning source of truth is
 - `v0.1.6` shipped the UI polish and packaging identity release.
 - `v0.2.0` shipped the Own & Play MVP and is stable after user testing.
 - `v0.2.1` shipped Smart Relink & Executable Detection.
-- `v0.2.3` is the latest stable patch release with Start Menu shortcut
-  executable fallback fixes and cleaned My Library hover actions.
-- `v0.3.x` is planned for Identity, Polish & Personalize work: naming polish,
-  themes, optional soundtrack experience, collections, journal, save
-  management, dashboards, and advanced filters.
+- `v0.3.0` is the current identity and polish release with Arcadia-branded
+  naming, preset themes, theme-safe SVG interface icons, and cleaned My Library
+  layout language.
+- Later `v0.3.x` releases remain planned for optional soundtrack experience,
+  collections, journal, save management, dashboards, and advanced filters.
 - `v0.4.x` is planned for Discovery & Source Intelligence.
 - `v0.5.x` is planned for Download Ecosystem & Production Hardening before
   `v1.0.x`.
@@ -166,9 +166,9 @@ For My Library imports, Arcadia also resolves platform and local artwork:
 
 ## My Library Removal
 
-Games can be removed from My Library from the card hover actions or game details.
-This removes the Arcadia library entry only. Installed game folders, executables,
-and downloaded files are not deleted by this action.
+Games can be removed from My Library from the game details modal with
+confirmation. This removes the Arcadia library entry only. Installed game
+folders, executables, and downloaded files are not deleted by this action.
 
 ## Game Details
 
@@ -235,8 +235,8 @@ network refresh fails.
 
 ## Download Manager
 
-Arcadia Core includes a built-in download manager using libtorrent for torrent
-work and a direct HTTP/HTTPS worker for normal downloadable files.
+Arcadia Core includes Arcadia Downloader, which uses libtorrent for torrent work
+and a direct HTTP/HTTPS worker for normal downloadable files.
 
 Download features:
 
@@ -346,8 +346,11 @@ page that disappears when the window closes.
 The UI is designed around a gaming hub identity:
 
 - Arcadia red/orange accent colors.
-- Charcoal-dark default theme.
-- Polished light theme.
+- Arcadia Dark default theme.
+- Arcadia Light theme.
+- Neon Red theme.
+- Electric Blue theme.
+- Subtle CSS-only gaming background treatments per preset theme.
 - Expandable sidebar.
 - Resizable sidebar.
 - Tooltip-friendly collapsed navigation.
@@ -366,8 +369,10 @@ The UI is designed around a gaming hub identity:
 - Styled confirmation dialogs.
 - Persistent theme and sidebar preferences.
 
-The dark theme remains the default, while light mode is available for users who
-prefer a cleaner high-contrast workspace.
+Arcadia Dark remains the default. All preset themes use the same layout and
+theme-safe icon masks, so interface icons remain visible across dark, light, and
+accented themes. Theme backgrounds are intentionally lightweight CSS layers,
+not large image assets, to keep the desktop app responsive.
 
 ## Data And Caching
 
@@ -435,6 +440,17 @@ dist\Arcadia\_internal\arcadia-extension\manifest.json
 
 The Inno Setup installer copies the full `dist\Arcadia` folder, including the
 packaged extension and frontend assets.
+
+Uninstall behavior:
+
+- The uninstaller stops a running Arcadia tray process before file removal.
+- Installed files and leftover files under the Arcadia install directory are
+  removed.
+- Local user data under `%LOCALAPPDATA%\Arcadia Core` is preserved by default.
+  The uninstaller prompts before removing settings, download state, resume
+  data, My Library metadata, cached artwork, and logs.
+- Downloaded games outside Arcadia's app data folder are never removed by the
+  uninstaller.
 
 ## Engineering Challenges Solved
 

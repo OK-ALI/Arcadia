@@ -9,7 +9,7 @@ import os
 import sys
 from typing import Callable
 
-from backend.config import DATA_DIR, FRONTEND_DIR, HOST, PORT
+from backend.config import ASSETS_DIR, DATA_DIR, FRONTEND_DIR, HOST, PORT
 from backend import scraper, cache as app_cache, system, news, library_service, start_menu_importer, artwork_service
 from backend.downloader import manager as downloader_manager
 from backend.download_capture import parse_bool, probe_url, validate_capture_url
@@ -36,6 +36,12 @@ app = Flask(
 def index():
     """Serve the main SPA page."""
     return send_file(os.path.join(FRONTEND_DIR, "index.html"))
+
+
+@app.route("/assets/icons/<path:filename>")
+def serve_interface_icon(filename):
+    """Serve packaged interface SVG/ICO/PNG assets."""
+    return send_from_directory(os.path.join(ASSETS_DIR, "icons"), filename)
 
 
 @app.route("/api/app/focus", methods=["POST"])

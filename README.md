@@ -4,8 +4,8 @@
 
 Arcadia Core is a Windows desktop gaming hub built with Python, Flask,
 pywebview, HTML, CSS, and vanilla JavaScript. It focuses on fast game discovery,
-live gaming news, local catalog caching, hardware compatibility checks, and a
-built-in download experience powered by libtorrent plus direct-file capture.
+live gaming news, local catalog caching, hardware compatibility checks, and
+Arcadia Downloader, a libtorrent plus direct-file capture experience.
 
 ## Download
 
@@ -13,7 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
-- Latest stable release: `v0.2.0`
+- Latest stable release: `v0.3.0`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation
@@ -23,7 +23,7 @@ available:
 ## Features
 
 - Arcadia Core branding with the subtitle **A Gaming Universe**.
-- Dark mode by default with a persistent light theme toggle.
+- Preset themes with Arcadia Dark, Arcadia Light, Neon Red, and Electric Blue.
 - Expandable and resizable sidebar with collapsed icon mode.
 - v0.2.0 My Library / Own & Play support with installed-game state,
   executable linking, launch controls, live running state, playtime tracking,
@@ -49,7 +49,7 @@ available:
   - Unknown Specs
   - Checking Specs
 - Compatible Specs Only filter hides pending and unknown entries.
-- Built-in libtorrent download manager with selectable files, queue priority,
+- Arcadia Downloader with selectable files, queue priority,
   pause/resume, retry, folder opening, magnet copy, live speed, seeders, ETA,
   and progress.
 - Completed download rows can be removed or cleared even if the torrent engine
@@ -177,6 +177,17 @@ The installer output is:
 ```text
 installer-output\ArcadiaCoreSetup.exe
 ```
+
+Uninstall behavior:
+
+- The installer stops a running Arcadia tray process before removing files.
+- Installed files and leftover files under the Arcadia install directory are
+  removed.
+- `%LOCALAPPDATA%\Arcadia Core` is treated as user data. The uninstaller asks
+  before removing settings, download state, resume data, My Library metadata,
+  cached artwork, and logs.
+- Downloaded games outside Arcadia's app data folder are not removed by the
+  uninstaller.
 
 The PyInstaller build should include the packaged browser extension at:
 

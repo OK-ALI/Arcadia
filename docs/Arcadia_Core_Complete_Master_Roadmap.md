@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.2.3 Stable  
-**Latest Stable:** v0.2.3  
+**Status:** Current as of v0.3.0  
+**Latest Stable:** v0.3.0  
 
 ---
 
@@ -38,7 +38,8 @@ v0.2.0 - Own & Play MVP                      Shipped and stable
 v0.2.1 - Smart Relink & Executable Detection Shipped
 v0.2.2 - Start Menu Import + Hover Library Cards Shipped and stable
 v0.2.3 - Start Menu Shortcut + Hover Fixes   Shipped and stable
-v0.3.x - Identity, Polish & Personalize      Planned
+v0.3.0 - UI Identity, Naming, Icons & Themes Current
+v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
 v1.0.0 - Gaming Universe                     Vision
@@ -143,7 +144,7 @@ Library entries now support:
 
 - Backlog.
 - Installed.
-- Needs Link.
+- Needs Launch File.
 - Missing.
 - Cached artwork.
 - Saved metadata.
@@ -156,7 +157,7 @@ Library entries now support:
 - Completed download folders are recorded as install folders.
 - Install folders are scanned for likely launchable `.exe` files.
 - Games with clear executable matches become launchable.
-- Games with multiple candidates become Needs Link.
+- Games with multiple candidates become Needs Launch File.
 - Missing folders or executables are marked Missing.
 
 ## Launch And Playtime
@@ -176,7 +177,7 @@ Library entries now support:
 - Cards show complete artwork, metadata, playtime, last played, and action
   controls before the grid scrolls.
 - Gallery, Search, Wishlist, and Latest cards can display library state.
-- Download inside App is disabled for games already installed and linked.
+- Download with Arcadia is disabled for games already installed and linked.
 
 ## Backend Structure
 
@@ -295,7 +296,7 @@ Filter out:
 
 - Show a Start Menu import review modal before adding anything.
 - Import strong matches as Installed.
-- Import uncertain matches as Needs Link.
+- Import uncertain matches as Needs Launch File.
 - Allow the user to reject individual matches.
 - Never auto-import without user confirmation.
 
@@ -325,7 +326,7 @@ Filter out:
 ## Hover Library Cards
 
 - Remove permanent card action buttons from the normal card body.
-- Reveal Launch, Open Folder, Relink Executable, and Mark Backlog as a
+- Reveal Launch, Open Folder, Change Launch File, and Mark Backlog as a
   hover/focus overlay.
 - Keep keyboard access with focus-visible states and button labels.
 - Keep touch layouts usable by exposing actions when hover is unavailable.
@@ -355,7 +356,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: planned after Own & Play linking/import is reliable.
+Status: v0.3.0 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -363,39 +364,55 @@ source intelligence and downloader hardening work.
 Planned split:
 
 ```text
-v0.3.0 - Product Naming & UI Language
-v0.3.1 - Theme System Expansion
+v0.3.0 - UI Identity, Naming, Icons & Preset Themes
+v0.3.1 - Theme Refinement & Accessibility
 v0.3.2 - Optional Soundtrack Experience
 v0.3.3 - Collections & Journal Foundation
 v0.3.4 - Save Management & Personal Dashboard
 ```
 
-## Naming And Product Language
+## v0.3.0 UI Identity, Naming, Icons And Preset Themes
 
 - Rename technical or generic labels into Arcadia-branded product language.
 - Use `Arcadia Downloader` instead of `Built-in Downloader`.
+- Use `Download with Arcadia` instead of `Download inside App`.
+- Use `Needs Launch File` instead of `Needs Link`.
+- Use `Change Launch File` instead of `Relink Executable`.
+- Use `Download Size` instead of `Source Size`.
+- Add theme-safe SVG interface icons from `assets/icons`.
+- Keep Font Awesome as fallback for icons that are not yet available as SVG.
+- Add icon attribution documentation for user-provided Flaticon assets.
+- Group My Library actions into primary import actions and maintenance actions.
+- Keep remove-from-library inside game details with confirmation only.
+- Ship preset themes:
+  - Arcadia Dark.
+  - Arcadia Light.
+  - Neon Red.
+  - Electric Blue.
+- Add subtle CSS-only gaming background treatments for each preset.
+- Persist selected theme locally.
+- Ensure icons adapt across all preset themes with CSS mask/currentColor
+  rendering.
+
+## Naming And Product Language
+
+- Continue auditing buttons, empty states, toasts, modal titles, settings labels,
+  and docs for wording that feels temporary, developer-focused, or unclear.
 - Use consistent terms for:
   - My Library.
   - Backlog.
   - Installed.
-  - Needs Link.
+  - Needs Launch File.
   - Arcadia Downloader.
   - Capture Review.
   - Prepare Download.
-- Audit buttons, empty states, toasts, modal titles, settings labels, and docs
-  for wording that feels temporary, developer-focused, or unclear.
 - Keep source names as attribution only, not as Arcadia feature names.
 
 ## Theme System
 
 - Keep charcoal dark as the default Arcadia identity.
 - Keep light mode as a polished supported theme.
-- Add more theme presets after the base UI is stable:
-  - Arcadia Dark.
-  - Arcadia Light.
-  - Neon Red.
-  - Console Green.
-  - Midnight Blue.
+- Refine theme presets after the base UI is stable.
 - Persist selected theme locally.
 - Keep accessibility contrast acceptable for every theme.
 - Avoid one-note palettes where every element becomes the same color.

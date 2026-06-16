@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
         searchHistory: 'arcadia_search_history',
         sidebarCollapsed: 'arcadia_sidebar_collapsed',
         sidebarWidth: 'arcadia_sidebar_width',
-        theme: 'arcadia_theme'
+        theme: 'arcadia_theme',
+        libraryGridDensity: 'arcadia_library_grid_density'
     };
 
     const state = {
@@ -38,7 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
         libraryRunningPoller: null,
         preparePoller: null,
         lastDownloadData: null,
-        downloadSettingsDirty: false
+        downloadSettingsDirty: false,
+        libraryGridDensity: 'auto'
     };
 
     window.userSpecs = {
@@ -89,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput: document.getElementById('search-input'),
         btnClearSearch: document.getElementById('btn-clear-search'),
         themeToggle: document.getElementById('btn-theme-toggle'),
+        themePicker: document.getElementById('theme-picker'),
+        themeMenu: document.getElementById('theme-menu'),
         toggleCompatibility: document.getElementById('toggle-compatibility'),
         popularContainer: document.getElementById('popular-container'),
         latestContainer: document.getElementById('latest-repacks-container'),
@@ -143,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnScanInstallFolder: document.getElementById('btn-scan-install-folder'),
         btnExportOffline: document.getElementById('btn-export-offline'),
         btnPruneMedia: document.getElementById('btn-prune-media'),
+        libraryGridDensity: document.getElementById('library-grid-density'),
         libraryFilterTabs: document.getElementById('library-filter-tabs'),
         btnPrevPage: document.getElementById('btn-prev-page'),
         btnNextPage: document.getElementById('btn-next-page'),
@@ -177,19 +182,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const THEME_PRESETS = {
+        'dark-mode': { label: 'Arcadia Dark', icon: 'icon-dark' },
+        'light-mode': { label: 'Arcadia Light', icon: 'icon-light' },
+        'theme-neon-red': { label: 'Neon Red', icon: 'icon-color-palette' },
+        'theme-electric-blue': { label: 'Electric Blue', icon: 'icon-color-palette' }
+    };
+
+    function normalizeTheme(theme) {
+        return THEME_PRESETS[theme] ? theme : 'dark-mode';
+    }
+
     function applyTheme(theme) {
-        const nextTheme = theme === 'light-mode' ? 'light-mode' : 'dark-mode';
-        const isLight = nextTheme === 'light-mode';
-        document.body.classList.toggle('light-mode', isLight);
-        document.body.classList.toggle('dark-mode', !isLight);
+        const nextTheme = normalizeTheme(theme);
+        const preset = THEME_PRESETS[nextTheme];
+        document.body.classList.remove(...Object.keys(THEME_PRESETS));
+        document.body.classList.add(nextTheme);
         localStorage.setItem(STORAGE.theme, nextTheme);
 
         if (elements.themeToggle) {
-            elements.themeToggle.innerHTML = `<i class="fa-solid ${isLight ? 'fa-moon' : 'fa-sun'}"></i>`;
-            elements.themeToggle.title = 'Toggle theme';
-            elements.themeToggle.setAttribute('aria-label', 'Toggle theme');
+            elements.themeToggle.innerHTML = `<span class="arc-icon ${preset.icon}" aria-hidden="true"></span>`;
+            elements.themeToggle.title = `Theme: ${preset.label}`;
+            elements.themeToggle.setAttribute('aria-label', `Choose theme. Current theme: ${preset.label}`);
             elements.themeToggle.setAttribute('data-theme', nextTheme);
         }
+        elements.themeMenu?.querySelectorAll('.theme-menu-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.themeOption === nextTheme);
+        });
     }
 
     function initTheme() {
@@ -591,6 +610,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function markLibraryIndexDirty() {
         state.libraryIndexLoaded = false;
+    }
+
+    function applyLibraryGridDensity(value) {
+        const allowed = ['auto', 'compact', 'comfortable', 'large'];
+        const density = allowed.includes(value) ? value : 'auto';
+        state.libraryGridDensity = density;
+        elements.catalogContainer?.classList.remove(
+            'library-grid-auto',
+            'library-grid-compact',
+            'library-grid-comfortable',
+            'library-grid-large'
+        );
+        elements.catalogContainer?.classList.add(`library-grid-${density}`);
+        if (elements.libraryGridDensity) elements.libraryGridDensity.value = density;
+        localStorage.setItem(STORAGE.libraryGridDensity, density);
     }
 
     function renderCards(container, games, emptyText) {
@@ -1128,10 +1162,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const prepared = await API.prepareDownload(slug);
                     renderPrepareDownloadModal(prepared);
                 } catch (err) {
-                    Components.showToast(`Failed to prepare built-in download: ${err.message}`, 'error');
+                    Components.showToast(`Failed to prepare Arcadia download: ${err.message}`, 'error');
                 } finally {
                     dlBtn.disabled = false;
-                    dlBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Download inside App';
+                    dlBtn.innerHTML = '<span class="arc-icon icon-cloud-download" aria-hidden="true"></span> Download with Arcadia';
                 }
             });
 
@@ -1305,7 +1339,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="prepared-total" id="prepared-selection-stats">--</div>
                 </div>
-                ${prepared.engine && !prepared.engine.available ? '<div class="modal-alert-warning"><i class="fa-solid fa-triangle-exclamation"></i><span>Built-in downloader is not available. Reinstall app dependencies.</span></div>' : ''}
+                ${prepared.engine && !prepared.engine.available ? '<div class="modal-alert-warning"><i class="fa-solid fa-triangle-exclamation"></i><span>Arcadia Downloader unavailable. Reinstall app dependencies.</span></div>' : ''}
                 ${!metadataReady ? '<div class="modal-alert-warning"><i class="fa-solid fa-spinner fa-spin"></i><span>Only torrent metadata placeholders were available. Real game files are not selectable yet.</span></div>' : ''}
                 <div class="prepare-options-grid">
                     <label><span>Save folder</span><div class="path-input-row"><input id="prepare-save-path" type="text" value="${escapeHTML(defaultPath)}" placeholder="Download folder"><button class="icon-btn path-browse-btn" id="btn-browse-prepare-path" title="Browse save folder" type="button"><i class="fa-solid fa-folder-open"></i></button></div></label>
@@ -1425,7 +1459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 queue_position: document.getElementById('prepare-queue-position').value
             });
             elements.gameModal.classList.remove('active');
-            Components.showToast('Download added to the built-in queue.', 'success');
+            Components.showToast('Download added to Arcadia Downloader.', 'success');
             switchView('downloads');
             await loadDownloads();
         } catch (err) {
@@ -1474,7 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const bandwidthSaved = Math.max(originalTotal - repackTotal, 0);
         const savingsPct = originalTotal > 0 ? Math.round((bandwidthSaved / originalTotal) * 100) : 0;
         elements.wishlistSavings.innerHTML = `
-            <div class="saving-item"><span class="saving-label">Source Size</span><span class="saving-val">${repackTotal.toFixed(1)} GB</span></div>
+            <div class="saving-item"><span class="saving-label">Download Size</span><span class="saving-val">${repackTotal.toFixed(1)} GB</span></div>
             <div class="saving-item"><span class="saving-label">Original Size</span><span class="saving-val saving-val-muted">${originalTotal.toFixed(1)} GB</span></div>
             <div class="saving-item"><span class="saving-label">Bandwidth Saved</span><span class="saving-val text-green">+ ${bandwidthSaved.toFixed(1)} GB (${savingsPct}% Saved)</span></div>
         `;
@@ -1493,8 +1527,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         elements.downloadsEngineAlert.style.display = 'flex';
         elements.downloadsEngineAlert.innerHTML = engine.available
-            ? `<i class="fa-solid fa-gauge-high"></i><span>Built-in downloader ready. Speed is uncapped unless limits are set; real speed depends on seeders, ISP, and disk.</span>`
-            : '<i class="fa-solid fa-triangle-exclamation"></i><span>Built-in downloader is not available. Reinstall app dependencies.</span>';
+            ? `<span class="arc-icon icon-speedometer" aria-hidden="true"></span><span>Arcadia Downloader ready. Speed is uncapped unless limits are set; real speed depends on seeders, ISP, and disk.</span>`
+            : '<i class="fa-solid fa-triangle-exclamation"></i><span>Arcadia Downloader unavailable. Reinstall app dependencies.</span>';
 
         const downloads = data.downloads || [];
         updateNavDownloadBadge(downloads);
@@ -1656,7 +1690,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             if (button) {
                 button.disabled = false;
-                button.innerHTML = '<i class="fa-solid fa-magnifying-glass-location"></i> Import Installed Games';
+                button.innerHTML = '<span class="arc-icon icon-game-collection" aria-hidden="true"></span> Import Installed Games';
             }
         }
     }
@@ -1680,7 +1714,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             if (button) {
                 button.disabled = false;
-                button.innerHTML = '<i class="fa-solid fa-folder-tree"></i> Scan Game Folder';
+                button.innerHTML = '<span class="arc-icon icon-search-folder" aria-hidden="true"></span> Scan Local Games';
             }
         }
     }
@@ -1703,7 +1737,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </span>
                             <span class="start-menu-import-meta">
                                 <strong>${escapeHTML(item.confidence || 'medium')}</strong>
-                                <small>${escapeHTML(item.import_status === 'installed' ? 'Installed' : 'Needs Link')}</small>
+                                <small>${escapeHTML(item.import_status === 'installed' ? 'Installed' : 'Needs Launch File')}</small>
                                 <small>${escapeHTML(String(item.library_source || '').replace('_', ' ') || 'scan')}</small>
                                 ${item.duplicate ? '<small>Already saved</small>' : ''}
                             </span>
@@ -1807,8 +1841,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function bindEvents() {
         let searchTimeout;
         elements.themeToggle?.addEventListener('click', () => {
-            const nextTheme = document.body.classList.contains('light-mode') ? 'dark-mode' : 'light-mode';
-            applyTheme(nextTheme);
+            const open = !elements.themePicker?.classList.contains('open');
+            elements.themePicker?.classList.toggle('open', open);
+            elements.themeToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        elements.themeMenu?.addEventListener('click', e => {
+            const item = e.target.closest('.theme-menu-item');
+            if (!item) return;
+            applyTheme(item.dataset.themeOption);
+            elements.themePicker?.classList.remove('open');
+            elements.themeToggle?.setAttribute('aria-expanded', 'false');
+        });
+        document.addEventListener('click', e => {
+            if (!elements.themePicker || elements.themePicker.contains(e.target)) return;
+            elements.themePicker.classList.remove('open');
+            elements.themeToggle?.setAttribute('aria-expanded', 'false');
         });
         elements.searchInput.addEventListener('input', e => {
             const value = e.target.value.trim();
@@ -1849,6 +1896,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 tab.classList.toggle('active', tab === btn);
             });
             renderOfflineCatalog();
+        });
+        elements.libraryGridDensity?.addEventListener('change', e => {
+            applyLibraryGridDensity(e.target.value);
         });
         elements.btnPrevPage.addEventListener('click', () => {
             if (state.currentPage > 1) {
@@ -2129,6 +2179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     migrateStorage();
     initTheme();
     initSidebar();
+    applyLibraryGridDensity(localStorage.getItem(STORAGE.libraryGridDensity) || 'auto');
     bindEvents();
     loadHomepage();
     loadDiagnostics();

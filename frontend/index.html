@@ -19,8 +19,9 @@
         (function () {
             try {
                 var savedTheme = localStorage.getItem('arcadia_theme') || 'dark-mode';
-                var theme = savedTheme === 'light-mode' ? 'light-mode' : 'dark-mode';
-                document.body.classList.remove('dark-mode', 'light-mode');
+                var allowed = ['dark-mode', 'light-mode', 'theme-neon-red', 'theme-electric-blue'];
+                var theme = allowed.indexOf(savedTheme) > -1 ? savedTheme : 'dark-mode';
+                document.body.classList.remove('dark-mode', 'light-mode', 'theme-neon-red', 'theme-electric-blue');
                 document.body.classList.add(theme);
             } catch (err) {
                 document.body.classList.add('dark-mode');
@@ -40,35 +41,35 @@
             </div>
             <nav class="sidebar-menu">
                 <button class="menu-item active" id="nav-home" title="Home">
-                    <i class="fa-solid fa-house"></i>
+                    <span class="arc-icon icon-dashboard" aria-hidden="true"></span>
                     <span>Home</span>
                 </button>
                 <button class="menu-item" id="nav-gallery" title="Games Gallery">
-                    <i class="fa-solid fa-gamepad"></i>
+                    <span class="arc-icon icon-gamepad" aria-hidden="true"></span>
                     <span>Games Gallery</span>
                 </button>
                 <button class="menu-item" id="nav-news" title="News">
-                    <i class="fa-solid fa-newspaper"></i>
+                    <span class="arc-icon icon-newspaper" aria-hidden="true"></span>
                     <span>News</span>
                 </button>
                 <button class="menu-item" id="nav-wishlist" title="Wishlist & Queue">
-                    <i class="fa-solid fa-star text-pink"></i>
+                    <span class="arc-icon icon-star" aria-hidden="true"></span>
                     <span>Wishlist & Queue</span>
                 </button>
                 <button class="menu-item" id="nav-downloads" title="Downloads">
-                    <span class="menu-icon-wrap"><i class="fa-solid fa-cloud-arrow-down text-green"></i><span class="nav-download-badge" id="nav-download-badge">0%</span></span>
+                    <span class="menu-icon-wrap"><span class="arc-icon icon-cloud-download" aria-hidden="true"></span><span class="nav-download-badge" id="nav-download-badge">0%</span></span>
                     <span>Downloads</span>
                 </button>
                 <button class="menu-item" id="nav-catalog" title="My Library">
-                    <i class="fa-solid fa-box-open"></i>
+                    <span class="arc-icon icon-game-library" aria-hidden="true"></span>
                     <span>My Library</span>
                 </button>
                 <button class="menu-item" id="nav-search-history" title="History">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span class="arc-icon icon-history" aria-hidden="true"></span>
                     <span>History</span>
                 </button>
                 <button class="menu-item" id="nav-upcoming" title="Upcoming">
-                    <i class="fa-solid fa-calendar-days"></i>
+                    <span class="arc-icon icon-calendar" aria-hidden="true"></span>
                     <span>Upcoming</span>
                 </button>
             </nav>
@@ -109,9 +110,17 @@
                     <button class="clear-search" id="btn-clear-search" title="Clear search" aria-label="Clear search"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="header-filters">
-                    <button class="theme-toggle-btn" id="btn-theme-toggle" title="Toggle theme" aria-label="Toggle theme">
-                        <i class="fa-solid fa-sun"></i>
-                    </button>
+                    <div class="theme-picker" id="theme-picker">
+                        <button class="theme-toggle-btn" id="btn-theme-toggle" title="Choose theme" aria-label="Choose theme" aria-expanded="false" aria-haspopup="menu">
+                            <span class="arc-icon icon-theme" aria-hidden="true"></span>
+                        </button>
+                        <div class="theme-menu" id="theme-menu" role="menu" aria-label="Theme presets">
+                            <button type="button" class="theme-menu-item" data-theme-option="dark-mode" role="menuitem"><span class="arc-icon icon-dark" aria-hidden="true"></span> Arcadia Dark</button>
+                            <button type="button" class="theme-menu-item" data-theme-option="light-mode" role="menuitem"><span class="arc-icon icon-light" aria-hidden="true"></span> Arcadia Light</button>
+                            <button type="button" class="theme-menu-item" data-theme-option="theme-neon-red" role="menuitem"><span class="arc-icon icon-color-palette" aria-hidden="true"></span> Neon Red</button>
+                            <button type="button" class="theme-menu-item" data-theme-option="theme-electric-blue" role="menuitem"><span class="arc-icon icon-color-palette" aria-hidden="true"></span> Electric Blue</button>
+                        </div>
+                    </div>
                     <label class="compat-toggle" title="Show only games that match this PC">
                         <input type="checkbox" id="toggle-compatibility">
                         <span class="toggle-switch" aria-hidden="true"><span class="slider round"></span></span>
@@ -258,11 +267,11 @@
                     </div>
                 </section>
 
-                <!-- Built-in Downloads View -->
+                <!-- Downloads View -->
                 <section id="view-downloads" class="content-view">
                     <div class="downloads-header-row">
                         <div>
-                            <h2>Built-in Downloader</h2>
+                            <h2>Arcadia Downloader</h2>
                             <p>Manage active torrents, selected files, priorities, and offline-ready downloads.</p>
                         </div>
                         <div class="downloads-actions">
@@ -356,21 +365,34 @@
                             <p>Saved and installed games, launch links, playtime, local media, and storage planning.</p>
                         </div>
                         <div class="offline-actions">
-                            <button class="btn btn-secondary" id="btn-import-start-menu" title="Find installed games from Windows Start Menu shortcuts"><i class="fa-solid fa-magnifying-glass-location"></i> Import Installed Games</button>
-                            <button class="btn btn-secondary" id="btn-scan-install-folder" title="Choose a game folder or games directory to scan"><i class="fa-solid fa-folder-tree"></i> Scan Game Folder</button>
-                            <button class="btn btn-secondary" id="btn-export-offline" title="Copy a backup of My Library and download state"><i class="fa-solid fa-file-export"></i> Backup Library</button>
-                            <button class="btn btn-secondary" id="btn-prune-media" title="Remove cached artwork that is no longer used"><i class="fa-solid fa-scissors"></i> Clean Unused Artwork</button>
+                            <div class="offline-action-group primary">
+                                <button class="btn btn-secondary" id="btn-import-start-menu" title="Find installed games from Windows Start Menu shortcuts"><span class="arc-icon icon-game-collection" aria-hidden="true"></span> Import Installed Games</button>
+                                <button class="btn btn-secondary" id="btn-scan-install-folder" title="Choose a game folder or games directory to scan"><span class="arc-icon icon-search-folder" aria-hidden="true"></span> Scan Local Games</button>
+                            </div>
+                            <div class="offline-action-group maintenance">
+                                <button class="btn btn-secondary" id="btn-export-offline" title="Copy a backup of My Library and download state"><span class="arc-icon icon-back-up" aria-hidden="true"></span> Backup Library</button>
+                                <button class="btn btn-secondary" id="btn-prune-media" title="Remove cached artwork that is no longer used"><i class="fa-solid fa-scissors"></i> Clean Artwork Cache</button>
+                            </div>
                         </div>
                     </div>
                     <div class="offline-stats-grid" id="offline-stats-grid"></div>
                     <div class="library-filter-tabs" id="library-filter-tabs">
                         <button class="library-filter-tab active" data-library-filter="playable">Playable</button>
                         <button class="library-filter-tab" data-library-filter="installed">Installed</button>
-                        <button class="library-filter-tab" data-library-filter="unlinked">Needs Link</button>
+                        <button class="library-filter-tab" data-library-filter="unlinked">Needs Launch File</button>
                         <button class="library-filter-tab" data-library-filter="steam">Steam</button>
                         <button class="library-filter-tab" data-library-filter="epic">Epic</button>
                         <button class="library-filter-tab" data-library-filter="backlog">Backlog</button>
                         <button class="library-filter-tab" data-library-filter="all">All</button>
+                        <label class="library-grid-density" title="Choose My Library card density">
+                            <span>Grid</span>
+                            <select id="library-grid-density">
+                                <option value="auto">Auto</option>
+                                <option value="compact">Compact</option>
+                                <option value="comfortable">Comfortable</option>
+                                <option value="large">Large</option>
+                            </select>
+                        </label>
                     </div>
                     <div class="repacks-grid" id="catalog-container">
                         <!-- Offline cached cards injected here -->

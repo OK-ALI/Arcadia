@@ -208,7 +208,7 @@ const Components = {
         if (library.running) return { label: 'Running', icon: 'fa-spinner fa-spin', className: 'running' };
         const status = String(library.install_status || 'backlog');
         if (status === 'installed') return { label: 'Installed', icon: 'fa-circle-play', className: 'installed' };
-        if (status === 'unlinked') return { label: 'Needs Link', icon: 'fa-link-slash', className: 'unlinked' };
+        if (status === 'unlinked') return { label: 'Needs Launch File', icon: 'fa-link-slash', className: 'unlinked' };
         if (status === 'missing') return { label: 'Missing', icon: 'fa-triangle-exclamation', className: 'missing' };
         return { label: 'Backlog', icon: 'fa-bookmark', className: 'backlog' };
     },
@@ -348,7 +348,7 @@ const Components = {
         const downloadBtnDisabled = (!game.magnet_link || isInstalledLinked) ? 'disabled' : '';
         const downloadBtnText = isInstalledLinked
             ? 'Already Installed'
-            : (game.magnet_link ? 'Download inside App' : 'No Magnet Link Available');
+            : (game.magnet_link ? 'Download with Arcadia' : 'No Magnet Link Available');
         const downloadBtnClass = isInstalledLinked ? 'btn-secondary installed-disabled' : (game.magnet_link ? 'btn-success' : 'btn-secondary');
         const primaryLaunchHTML = (canLaunchLibrary || libraryRunning) ? `
             <button id="modal-library-launch-primary-btn" class="btn btn-success ${libraryRunning ? 'is-running' : ''}" ${libraryRunning ? 'disabled' : ''}><i class="fa-solid ${libraryRunning ? 'fa-spinner fa-spin' : 'fa-play'}"></i> ${libraryRunning ? 'Running' : 'Launch'}</button>
@@ -550,7 +550,7 @@ const Components = {
                 <div class="modal-actions library-detail-actions">
                     <button id="modal-library-launch-btn" class="btn btn-success ${library.running ? 'is-running' : ''}" ${library.install_status === 'installed' && library.executable_path && !library.running ? '' : 'disabled'}><i class="fa-solid ${library.running ? 'fa-spinner fa-spin' : 'fa-play'}"></i> ${library.running ? 'Running' : 'Launch'}</button>
                     <button id="modal-library-folder-btn" class="btn btn-secondary" ${library.install_path ? '' : 'disabled'}><i class="fa-solid fa-folder-open"></i> Open Folder</button>
-                    <button id="modal-library-relink-btn" class="btn btn-secondary"><i class="fa-solid fa-link"></i> Relink Executable</button>
+                    <button id="modal-library-relink-btn" class="btn btn-secondary"><i class="fa-solid fa-link"></i> Change Launch File</button>
                     <button id="modal-library-artwork-btn" class="btn btn-secondary"><i class="fa-solid fa-image"></i> Change Artwork</button>
                     <button id="modal-library-artwork-refresh-btn" class="btn btn-secondary"><i class="fa-solid fa-wand-magic-sparkles"></i> Refresh Artwork</button>
                     <button id="modal-library-artwork-reset-btn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset Artwork</button>
@@ -574,7 +574,7 @@ const Components = {
                         <li class="modal-meta-item"><span class="meta-label">Companies</span><span class="meta-value">${this.escape(game.companies || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Languages</span><span class="meta-value">${this.escape(game.languages || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Original Size</span><span class="meta-value">${this.escape(game.original_size || 'N/A')}</span></li>
-                        <li class="modal-meta-item"><span class="meta-label">Source Size</span><span class="meta-value meta-value-strong text-green">${this.escape(game.repack_size || 'N/A')}</span></li>
+                        <li class="modal-meta-item"><span class="meta-label">Download Size</span><span class="meta-value meta-value-strong text-green">${this.escape(game.repack_size || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Release Date</span><span class="meta-value">${game.date ? new Date(game.date).toLocaleDateString() : 'N/A'}</span></li>
                     </ul>
                     <div class="modal-actions">
@@ -583,7 +583,7 @@ const Components = {
                         <button id="modal-wishlist-btn" class="btn btn-star-wishlist ${isWishlisted ? 'active' : ''}"><i class="fa-${isWishlisted ? 'solid' : 'regular'} fa-star"></i> ${isWishlisted ? 'Wishlisted' : 'Add to Wishlist'}</button>
                         <button id="modal-save-offline-btn" class="btn btn-secondary"><i class="fa-solid fa-box-archive"></i> Save to Library</button>
                         <button id="modal-check-updates-btn" class="btn btn-secondary"><i class="fa-solid fa-rotate"></i> Check for Updates</button>
-                        ${game.url ? `<a href="${this.escape(game.url)}" class="btn btn-secondary" target="_blank"><i class="fa-solid fa-database"></i> Open Source Page</a>` : ''}
+                        ${game.url ? `<a href="${this.escape(game.url)}" class="btn btn-secondary" target="_blank"><i class="fa-solid fa-database"></i> Open Game Source Page</a>` : ''}
                     </div>
                     ${officialLinks ? `<div class="detail-section"><h3>Official Links</h3><div class="mirrors-list">${officialLinks}</div></div>` : ''}
                     ${libraryHTML}
