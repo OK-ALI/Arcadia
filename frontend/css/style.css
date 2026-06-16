@@ -2684,8 +2684,8 @@ body.light-mode .library-filter-tab {
     display: flex;
     align-items: center;
     justify-content: stretch;
-    gap: 5px;
-    padding: 5px;
+    gap: 7px;
+    padding: 6px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
     background: rgba(8, 8, 10, 0.82);
@@ -2709,10 +2709,10 @@ body.light-mode .library-card-actions {
 }
 
 .library-card-actions .btn {
-    flex: 0 0 34px;
-    width: 34px;
-    height: 34px;
-    min-height: 34px;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
     padding: 0;
     font-size: 12px;
     line-height: 1;
@@ -2720,10 +2720,10 @@ body.light-mode .library-card-actions {
 }
 
 .library-card-actions .icon-btn {
-    flex: 0 0 34px;
-    width: 34px;
-    height: 34px;
-    min-height: 34px;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
 }
 
 .library-card-actions .library-launch i {

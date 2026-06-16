@@ -258,7 +258,6 @@ const Components = {
                     <button class="icon-btn library-open-folder" title="Open install folder" aria-label="Open install folder" ${library.install_path ? '' : 'disabled'}><i class="fa-solid fa-folder-open"></i></button>
                     <button class="icon-btn library-relink" title="Relink executable" aria-label="Relink executable"><i class="fa-solid fa-link"></i></button>
                     <button class="icon-btn library-backlog" title="Mark backlog" aria-label="Mark backlog"><i class="fa-solid fa-bookmark"></i></button>
-                    <button class="icon-btn danger library-remove" title="Remove from My Library" aria-label="Remove from My Library"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
             </div>
             <div class="library-body">

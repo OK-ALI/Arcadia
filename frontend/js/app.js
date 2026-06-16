@@ -649,7 +649,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             card.querySelector('.library-relink')?.addEventListener('click', async () => relinkLibraryGame(game.slug, game.library?.install_path || ''));
             card.querySelector('.library-backlog')?.addEventListener('click', async () => markLibraryBacklog(game.slug));
-            card.querySelector('.library-remove')?.addEventListener('click', async () => removeLibraryGame(game.slug, game.title));
             container.appendChild(card);
         });
     }

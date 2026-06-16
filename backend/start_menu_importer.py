@@ -64,6 +64,25 @@ def _compact(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
 
 
+def _icon_executable_path(shortcut: dict[str, Any]) -> str:
+    icon_location = str(shortcut.get("icon_location") or "").strip()
+    if not icon_location:
+        return ""
+    path = icon_location.split(",", 1)[0].strip().strip('"')
+    if path.lower().endswith(".exe") and os.path.exists(path):
+        return os.path.abspath(path)
+    return ""
+
+
+def _effective_target_path(shortcut: dict[str, Any]) -> str:
+    target_path = str(shortcut.get("target_path") or "").strip()
+    if target_path:
+        target_path = os.path.abspath(target_path)
+        if target_path.lower().endswith(".exe") and os.path.exists(target_path):
+            return target_path
+    return _icon_executable_path(shortcut)
+
+
 def _safe_slug(value: str) -> str:
     cleaned = re.sub(r"[^a-z0-9]+", "-", str(value or "").lower()).strip("-")
     return cleaned[:90] or "local-game"
@@ -177,7 +196,7 @@ def _known_games() -> list[dict[str, Any]]:
 
 def _is_excluded(shortcut: dict[str, Any]) -> tuple[bool, str]:
     shortcut_name = Path(shortcut.get("shortcut_path") or "").stem
-    target_path = os.path.abspath(str(shortcut.get("target_path") or ""))
+    target_path = _effective_target_path(shortcut)
     target_name = Path(target_path).stem
     haystack = _compact(" ".join([shortcut_name, target_name, target_path]))
     if not target_path.lower().endswith(".exe") or not os.path.exists(target_path):
@@ -190,7 +209,7 @@ def _is_excluded(shortcut: dict[str, Any]) -> tuple[bool, str]:
 
 
 def _install_path_for(shortcut: dict[str, Any]) -> str:
-    target_path = os.path.abspath(str(shortcut.get("target_path") or ""))
+    target_path = _effective_target_path(shortcut) or os.path.abspath(str(shortcut.get("target_path") or ""))
     working = os.path.abspath(str(shortcut.get("working_directory") or ""))
     if working and os.path.isdir(working):
         try:
@@ -203,7 +222,7 @@ def _install_path_for(shortcut: dict[str, Any]) -> str:
 
 def _score_match(shortcut: dict[str, Any], game: dict[str, Any]) -> tuple[int, list[str]]:
     shortcut_name = Path(shortcut.get("shortcut_path") or "").stem
-    target_path = str(shortcut.get("target_path") or "")
+    target_path = _effective_target_path(shortcut) or str(shortcut.get("target_path") or "")
     target_name = Path(target_path).stem
     parent_name = Path(target_path).parent.name
     source = " ".join([shortcut_name, target_name, parent_name])
@@ -552,6 +571,7 @@ def scan_start_menu() -> dict[str, Any]:
         if not best_game or best_score < 48:
             filtered += 1
             continue
+        target_path = _effective_target_path(shortcut)
         confidence = "high" if best_score >= 78 else "medium"
         slug = best_game.get("slug") or ""
         existing_status = library_status.get(slug, "")
@@ -561,7 +581,7 @@ def scan_start_menu() -> dict[str, Any]:
             "id": _compact(f"{shortcut.get('shortcut_path')}|{shortcut.get('target_path')}"),
             "shortcut_name": Path(shortcut.get("shortcut_path") or "").stem,
             "shortcut_path": shortcut.get("shortcut_path") or "",
-            "target_path": os.path.abspath(str(shortcut.get("target_path") or "")),
+            "target_path": target_path,
             "working_directory": shortcut.get("working_directory") or "",
             "install_path": _install_path_for(shortcut),
             "matched_slug": slug,

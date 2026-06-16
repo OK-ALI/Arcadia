@@ -52,8 +52,8 @@ The current planning source of truth is
 - `v0.1.6` shipped the UI polish and packaging identity release.
 - `v0.2.0` shipped the Own & Play MVP and is stable after user testing.
 - `v0.2.1` shipped Smart Relink & Executable Detection.
-- `v0.2.2` is the latest stable release with Installed Game Import, hover
-  Library cards, platform/local artwork hydration, and library removal.
+- `v0.2.3` is the latest stable patch release with Start Menu shortcut
+  executable fallback fixes and cleaned My Library hover actions.
 - `v0.3.x` is planned for Identity, Polish & Personalize work: naming polish,
   themes, optional soundtrack experience, collections, journal, save
   management, dashboards, and advanced filters.

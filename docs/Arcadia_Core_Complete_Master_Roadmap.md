@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.2.2 Stable  
-**Latest Stable:** v0.2.2  
+**Status:** Current as of v0.2.3 Stable  
+**Latest Stable:** v0.2.3  
 
 ---
 
@@ -37,6 +37,7 @@ v0.1.6 - UI Polish                           Shipped
 v0.2.0 - Own & Play MVP                      Shipped and stable
 v0.2.1 - Smart Relink & Executable Detection Shipped
 v0.2.2 - Start Menu Import + Hover Library Cards Shipped and stable
+v0.2.3 - Start Menu Shortcut + Hover Fixes   Shipped and stable
 v0.3.x - Identity, Polish & Personalize      Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
