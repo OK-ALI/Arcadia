@@ -28,18 +28,38 @@ const INTERCEPT_HOSTS = [
 
 const LOCAL_CAPTURE_ENDPOINT = 'http://127.0.0.1:5000/api/app/focus';
 const CAPTURED_DOWNLOAD_IDS_LIMIT = 200;
-const capturedDownloadIds = [];
+const CAPTURED_DOWNLOAD_URLS_LIMIT = 200;
+const capturedDownloadIds = new Set();
+const capturedDownloadUrls = new Map();
 
 function rememberCapturedDownload(id) {
     if (id === undefined || id === null) return;
-    capturedDownloadIds.push(id);
-    while (capturedDownloadIds.length > CAPTURED_DOWNLOAD_IDS_LIMIT) {
-        capturedDownloadIds.shift();
+    capturedDownloadIds.add(id);
+    while (capturedDownloadIds.size > CAPTURED_DOWNLOAD_IDS_LIMIT) {
+        capturedDownloadIds.delete(capturedDownloadIds.values().next().value);
     }
 }
 
 function wasCaptured(id) {
-    return capturedDownloadIds.includes(id);
+    return capturedDownloadIds.has(id);
+}
+
+function normalizeCaptureUrl(item) {
+    return item.finalUrl || item.url || '';
+}
+
+function rememberCapturedUrl(url) {
+    if (!url) return false;
+    const now = Date.now();
+    const previous = capturedDownloadUrls.get(url) || 0;
+    capturedDownloadUrls.set(url, now);
+    for (const [key, value] of capturedDownloadUrls) {
+        if (capturedDownloadUrls.size <= CAPTURED_DOWNLOAD_URLS_LIMIT && now - value < 15000) break;
+        if (capturedDownloadUrls.size > CAPTURED_DOWNLOAD_URLS_LIMIT || now - value >= 15000) {
+            capturedDownloadUrls.delete(key);
+        }
+    }
+    return previous && now - previous < 1200;
 }
 
 function shouldIntercept(item) {
@@ -103,6 +123,10 @@ function captureDownload(item, phase) {
 
     rememberCapturedDownload(item.id);
     const url = item.finalUrl || item.url;
+    if (rememberCapturedUrl(url)) {
+        rememberCapturedDownload(item.id);
+        return true;
+    }
     chrome.downloads.cancel(item.id, () => {
         if (chrome.runtime.lastError) {
             console.warn("Arcadia Extension: Browser cancel warning:", chrome.runtime.lastError.message);
@@ -110,8 +134,22 @@ function captureDownload(item, phase) {
     });
 
     console.log(`Arcadia Extension: Intercepted browser download during ${phase}:`, url);
-    sendToArcadia(url);
+    sendToArcadia(buildCapturePayload(item, phase));
     return true;
+}
+
+function buildCapturePayload(item, phase) {
+    const url = normalizeCaptureUrl(item);
+    return {
+        url,
+        original_url: item.url || url,
+        final_url: item.finalUrl || url,
+        filename: item.filename || '',
+        mime: item.mime || '',
+        referrer: item.referrer || '',
+        source: 'extension',
+        phase
+    };
 }
 
 // Capture as early as possible so repeated downloads do not fall through to the browser.
@@ -145,7 +183,37 @@ chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
     suggest();
 });
 
-async function sendToArcadia(url) {
+async function sendToArcadia(payload) {
+    const url = payload.url;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2500 + attempt * 1000);
+            const response = await fetch(LOCAL_CAPTURE_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            const data = await response.json().catch(() => ({}));
+            if (data.success) {
+                console.log("Arcadia Extension: Sent capture to Arcadia client.");
+                return;
+            }
+            console.warn("Arcadia Extension API warning:", data.error || data.message || 'not ready');
+        } catch (err) {
+            console.warn(`Arcadia Extension: Local capture attempt ${attempt} failed:`, err);
+        }
+        await new Promise(resolve => setTimeout(resolve, 350 * attempt));
+    }
+    console.warn("Arcadia Extension: Local client is offline. Triggering custom protocol fallback.");
+    triggerProtocolLaunch(url);
+}
+
+async function legacySendToArcadia(url) {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);

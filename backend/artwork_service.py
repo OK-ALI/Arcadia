@@ -265,7 +265,7 @@ def _catalog_artwork(slug: str, title: str) -> tuple[str, dict[str, Any] | None]
     matches: list[tuple[int, dict[str, Any], list[str], str]] = []
     for game in _catalog_candidates():
         score, reasons = _catalog_match_score(slug, title, game)
-        if score >= 82:
+        if score >= 88:
             image = _candidate_image(game)
             matches.append((score, game, reasons, image))
     if not matches:

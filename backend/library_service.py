@@ -195,12 +195,12 @@ def _find_catalog_slug(entry: dict[str, Any]) -> tuple[str, int]:
         candidates = _search_catalog_candidates(title)
     for candidate in candidates:
         score = _catalog_match_score(slug, title, candidate)
-        if score >= 82:
+        if score >= 88:
             matches.append((score, candidate))
     if not matches and candidates:
         for candidate in _search_catalog_candidates(title):
             score = _catalog_match_score(slug, title, candidate)
-            if score >= 82:
+            if score >= 88:
                 matches.append((score, candidate))
     if not matches:
         return "", 0

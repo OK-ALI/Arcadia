@@ -32,8 +32,10 @@ _instance_mutex = None
 TITLE_BAR_THEMES = {
     "dark-mode": {"caption": 0x00100D0B, "text": 0x00F4F7FB, "border": 0x00211E1B, "dark": True},
     "light-mode": {"caption": 0x00FBF7F4, "text": 0x00201814, "border": 0x00DDD6D1, "dark": False},
-    "theme-neon-red": {"caption": 0x00100A0A, "text": 0x00F7F5F2, "border": 0x00231F80, "dark": True},
-    "theme-electric-blue": {"caption": 0x001B1007, "text": 0x00F8F5F0, "border": 0x00A86214, "dark": True},
+    "theme-ember": {"caption": 0x000E100F, "text": 0x00EFF5FA, "border": 0x002A4AF0, "dark": True},
+    "theme-abyss": {"caption": 0x0019110B, "text": 0x00FFF8F1, "border": 0x00D8B745, "dark": True},
+    "theme-neon-red": {"caption": 0x000E100F, "text": 0x00EFF5FA, "border": 0x002A4AF0, "dark": True},
+    "theme-electric-blue": {"caption": 0x0019110B, "text": 0x00FFF8F1, "border": 0x00D8B745, "dark": True},
 }
 
 

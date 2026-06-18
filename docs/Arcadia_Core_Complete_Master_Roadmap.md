@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.3.1  
-**Latest Stable:** v0.3.1  
+**Status:** Current as of v0.3.2
+**Latest Stable:** v0.3.2
 
 ---
 
@@ -39,7 +39,8 @@ v0.2.1 - Smart Relink & Executable Detection Shipped
 v0.2.2 - Start Menu Import + Hover Library Cards Shipped and stable
 v0.2.3 - Start Menu Shortcut + Hover Fixes   Shipped and stable
 v0.3.0 - UI Identity, Naming, Icons & Themes Shipped and stable
-v0.3.1 - Reliable Catalog Artwork & Matching Current
+v0.3.1 - Reliable Catalog Artwork & Matching Shipped and stable
+v0.3.2 - Theme Polish, Specs Coverage & Reliability Current
 v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
@@ -357,7 +358,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: v0.3.1 current; later v0.3.x releases planned.
+Status: v0.3.2 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -367,7 +368,7 @@ Planned split:
 ```text
 v0.3.0 - UI Identity, Naming, Icons & Preset Themes
 v0.3.1 - Reliable Catalog Artwork & Library Matching
-v0.3.2 - Theme Refinement & Accessibility
+v0.3.2 - Theme Polish, Specs Coverage & Reliability
 v0.3.3 - Optional Soundtrack Experience
 v0.3.4 - Collections & Journal Foundation
 v0.3.5 - Save Management & Personal Dashboard
@@ -408,6 +409,110 @@ v0.3.5 - Save Management & Personal Dashboard
   and offline use.
 - Keep manual artwork overrides protected and show clearer artwork source labels
   such as Manual, Steam, Epic, Arcadia Catalog, and Placeholder.
+
+## v0.3.2 Theme Polish, Specs Coverage And Reliability
+
+Status: current stable.
+
+Goal: make the current interface and trust systems feel more dependable before
+adding new personalization features.
+
+### Compatible Specs Only
+
+- Improved the requirements resolver pipeline:
+  - Source page specs first.
+  - Steam requirements second.
+  - PCGamingWiki no-key fallback third.
+- Cache resolved requirements per game slug/title so Gallery and Search do not
+  repeatedly refetch the same specs.
+- Apply external requirements only after strict title matching.
+- Store requirement metadata:
+  - `requirements_source`.
+  - `requirements_confidence`.
+  - `requirements_checked_at`.
+  - `requirements_status`.
+- Replaced vague Unknown Specs behavior with clearer states:
+  - Checking Specs.
+  - Compatible.
+  - Min Specs.
+  - Below Specs.
+  - Specs Unavailable.
+- When Compatible Specs Only is enabled, keep Checking Specs games visible
+  temporarily, then hide only final Below Specs and Specs Unavailable results.
+- Show a small notice or count when games are hidden because specs are
+  unavailable.
+
+### Sidebar Download Progress
+
+- Keep download percentage visible when the sidebar is collapsed.
+- Replace the previously hidden collapsed badge with a compact icon overlay:
+  - Percent for known-size downloads.
+  - Active count for unknown-size downloads.
+  - `M` or similar metadata indicator for metadata-only states.
+- Preserve full status text in the nav tooltip.
+- Ensure the badge does not overlap the Downloads icon or active sidebar state.
+
+### My Library Grid
+
+- Make My Library card sizing visually align with Games Gallery card rhythm.
+- Replace the preset-only grid dropdown with:
+  - Auto mode.
+  - Manual card-size slider.
+- Persist the slider value in local storage.
+- In Auto mode, use responsive gallery-like tracks.
+- In manual mode, map slider values to card width and artwork height while
+  preserving complete rows and grid-only vertical scrolling.
+
+### Stricter Catalog Matching
+
+- Raise automatic Arcadia catalog match confidence for library metadata and
+  artwork.
+- Require stronger title token overlap for short titles and sequel-heavy
+  franchises.
+- Keep exact cleaned-title and exact slug matches fast.
+- Store match score and reason as today.
+- Avoid applying catalog artwork or metadata when confidence is below the
+  stricter threshold.
+- Preserve Steam, Epic, and local metadata when no confident Arcadia catalog
+  match exists.
+
+### Theme Refresh And Accessibility Polish
+
+- Keep Arcadia Dark as the default identity theme.
+- Keep Arcadia Light as a polished supported theme.
+- Replace Neon Red with Ember:
+  - Graphite base.
+  - Warm ember/red-orange accents.
+  - Less neon glow, more premium gaming hardware feel.
+- Replace Electric Blue with Abyss:
+  - Deep black/navy base.
+  - Cyan and steel-blue accents.
+  - Cooler sci-fi mood without making the whole UI blue.
+- Add simple theme customization controls:
+  - Accent color selector.
+  - Background intensity: Off, Subtle, Immersive.
+  - Motion preference: Normal or Reduced.
+- Keep layout identical across themes; themes change color, depth, background
+  treatment, and accents only.
+- Polish native Windows title bar theme sync fallback behavior.
+- Audit buttons, inputs, cards, modals, menus, badges, disabled states, focus
+  rings, hover states, and scrollbars across all themes.
+- Keep contrast readable in light mode and accent themes.
+- Respect reduced-motion preferences for hover/card transitions where practical.
+
+### Extension Reliability
+
+- Keep the existing extension project.
+- Improve repeated-download capture by tracking IDs and URLs separately.
+- Capture final URL, original URL, filename, MIME type, and referrer where
+  available.
+- Prefer final URL when present, but keep the original URL as fallback metadata.
+- Improve local Arcadia handoff retry behavior before using `arcadia://`.
+- Keep unsupported captcha/timer/ad pages as fallback links only.
+- Keep permissions minimal:
+  - `downloads`.
+  - `tabs`.
+  - local Arcadia host permission.
 
 ## Naming And Product Language
 

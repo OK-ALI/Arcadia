@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.1
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.2
 
 ## Project Overview
 
@@ -55,9 +55,13 @@ The current planning source of truth is
 - `v0.3.0` shipped the identity and polish release with Arcadia-branded naming,
   preset themes, theme-safe SVG interface icons, and cleaned My Library layout
   language.
-- `v0.3.1` is the current artwork reliability patch with stronger source-page
+- `v0.3.1` shipped the artwork reliability patch with stronger source-page
   artwork extraction, better Arcadia catalog title matching, and permanent My
   Library artwork caching.
+- `v0.3.2` is the current polish and trust release, focused on theme
+  consistency, Compatible Specs Only coverage, collapsed sidebar download
+  progress, My Library grid controls, stricter catalog matching, and browser
+  extension capture reliability.
 - Later `v0.3.x` releases remain planned for optional soundtrack experience,
   collections, journal, save management, dashboards, and advanced filters.
 - `v0.4.x` is planned for Discovery & Source Intelligence.
@@ -213,11 +217,14 @@ Badge states:
 - **Min Specs:** System appears to meet minimum requirements but may be below
   recommended level.
 - **Below Specs:** System appears below a known minimum requirement.
-- **Unknown Specs:** Requirements could not be compared accurately.
 - **Checking Specs:** Requirements are still being fetched for the visible page.
+- **Specs Unavailable / Unknown Specs:** Requirements could not be found or
+  compared accurately after available sources were checked.
 
-The Compatible Specs Only filter hides unknown and pending results so users only
-see games with real passing compatibility results.
+The current filter relies on available source and Steam-derived requirements.
+The planned v0.3.2 improvement will keep Checking Specs results visible while
+hydration runs, then hide final Below Specs and Specs Unavailable results once
+Arcadia has exhausted trusted requirement sources.
 
 ## News System
 
@@ -351,8 +358,15 @@ The UI is designed around a gaming hub identity:
 - Arcadia red/orange accent colors.
 - Arcadia Dark default theme.
 - Arcadia Light theme.
-- Neon Red theme.
-- Electric Blue theme.
+- Current v0.3.2 themes:
+  - Arcadia Dark.
+  - Arcadia Light.
+  - Ember, replacing Neon Red with a warmer graphite/red-orange gaming style.
+  - Abyss, replacing Electric Blue with a deeper black/navy/cyan sci-fi style.
+- Theme customization controls:
+  - Accent color selector.
+  - Background intensity controls.
+  - Normal or reduced motion preference.
 - Subtle CSS-only gaming background treatments per preset theme.
 - Expandable sidebar.
 - Resizable sidebar.
@@ -372,10 +386,10 @@ The UI is designed around a gaming hub identity:
 - Styled confirmation dialogs.
 - Persistent theme and sidebar preferences.
 
-Arcadia Dark remains the default. All preset themes use the same layout and
-theme-safe icon masks, so interface icons remain visible across dark, light, and
-accented themes. Theme backgrounds are intentionally lightweight CSS layers,
-not large image assets, to keep the desktop app responsive.
+Arcadia Dark remains the default. All preset and customized themes use the same
+layout and theme-safe icon masks, so interface icons remain visible across dark,
+light, and accented themes. Theme backgrounds are intentionally lightweight CSS
+layers, not large image assets, to keep the desktop app responsive.
 
 ## Data And Caching
 

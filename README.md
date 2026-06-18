@@ -13,7 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
-- Latest stable release: `v0.3.1`
+- Latest stable release: `v0.3.2`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation
@@ -23,7 +23,8 @@ available:
 ## Features
 
 - Arcadia Core branding with the subtitle **A Gaming Universe**.
-- Preset themes with Arcadia Dark, Arcadia Light, Neon Red, and Electric Blue.
+- Preset themes with Arcadia Dark, Arcadia Light, Ember, and Abyss, plus simple
+  accent, background, and reduced-motion preferences.
 - Expandable and resizable sidebar with collapsed icon mode.
 - v0.2.0 My Library / Own & Play support with installed-game state,
   executable linking, launch controls, live running state, playtime tracking,
@@ -48,7 +49,8 @@ available:
   - Below Specs
   - Unknown Specs
   - Checking Specs
-- Compatible Specs Only filter hides pending and unknown entries.
+- Compatible Specs Only keeps Checking Specs visible briefly, then hides final
+  Below Specs and Specs Unavailable entries with a clear notice.
 - Arcadia Downloader with selectable files, queue priority,
   pause/resume, retry, folder opening, magnet copy, live speed, seeders, ETA,
   and progress.

@@ -10,7 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebarCollapsed: 'arcadia_sidebar_collapsed',
         sidebarWidth: 'arcadia_sidebar_width',
         theme: 'arcadia_theme',
-        libraryGridDensity: 'arcadia_library_grid_density'
+        themeAccent: 'arcadia_accent',
+        themeBackground: 'arcadia_background_intensity',
+        themeMotion: 'arcadia_motion',
+        libraryGridDensity: 'arcadia_library_grid_density',
+        libraryGridSize: 'arcadia_library_grid_size',
+        libraryGridAuto: 'arcadia_library_grid_auto'
     };
 
     const state = {
@@ -40,7 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
         preparePoller: null,
         lastDownloadData: null,
         downloadSettingsDirty: false,
-        libraryGridDensity: 'auto'
+        libraryGridDensity: 'auto',
+        libraryGridSize: 204,
+        hiddenUnavailableSpecs: 0
     };
 
     window.userSpecs = {
@@ -93,6 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
         themeToggle: document.getElementById('btn-theme-toggle'),
         themePicker: document.getElementById('theme-picker'),
         themeMenu: document.getElementById('theme-menu'),
+        themeBackgroundIntensity: document.getElementById('theme-background-intensity'),
+        themeMotionMode: document.getElementById('theme-motion-mode'),
         toggleCompatibility: document.getElementById('toggle-compatibility'),
         popularContainer: document.getElementById('popular-container'),
         latestContainer: document.getElementById('latest-repacks-container'),
@@ -147,7 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnScanInstallFolder: document.getElementById('btn-scan-install-folder'),
         btnExportOffline: document.getElementById('btn-export-offline'),
         btnPruneMedia: document.getElementById('btn-prune-media'),
-        libraryGridDensity: document.getElementById('library-grid-density'),
+        libraryGridAuto: document.getElementById('library-grid-auto'),
+        libraryGridSize: document.getElementById('library-grid-size'),
         libraryFilterTabs: document.getElementById('library-filter-tabs'),
         btnPrevPage: document.getElementById('btn-prev-page'),
         btnNextPage: document.getElementById('btn-next-page'),
@@ -185,18 +195,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const THEME_PRESETS = {
         'dark-mode': { label: 'Arcadia Dark', icon: 'icon-dark' },
         'light-mode': { label: 'Arcadia Light', icon: 'icon-light' },
-        'theme-neon-red': { label: 'Neon Red', icon: 'icon-color-palette' },
-        'theme-electric-blue': { label: 'Electric Blue', icon: 'icon-color-palette' }
+        'theme-ember': { label: 'Ember', icon: 'icon-color-palette' },
+        'theme-abyss': { label: 'Abyss', icon: 'icon-color-palette' }
+    };
+
+    const THEME_ALIASES = {
+        'theme-neon-red': 'theme-ember',
+        'theme-electric-blue': 'theme-abyss'
     };
 
     function normalizeTheme(theme) {
-        return THEME_PRESETS[theme] ? theme : 'dark-mode';
+        const mapped = THEME_ALIASES[theme] || theme;
+        return THEME_PRESETS[mapped] ? mapped : 'dark-mode';
+    }
+
+    function applyThemePreferences() {
+        const accent = ['ember', 'blue', 'green'].includes(localStorage.getItem(STORAGE.themeAccent))
+            ? localStorage.getItem(STORAGE.themeAccent)
+            : 'ember';
+        const background = ['off', 'subtle', 'immersive'].includes(localStorage.getItem(STORAGE.themeBackground))
+            ? localStorage.getItem(STORAGE.themeBackground)
+            : 'subtle';
+        const motion = ['normal', 'reduced'].includes(localStorage.getItem(STORAGE.themeMotion))
+            ? localStorage.getItem(STORAGE.themeMotion)
+            : 'normal';
+        document.body.dataset.accent = accent;
+        document.body.dataset.background = background;
+        document.body.dataset.motion = motion;
+        elements.themeBackgroundIntensity && (elements.themeBackgroundIntensity.value = background);
+        elements.themeMotionMode && (elements.themeMotionMode.value = motion);
+        elements.themeMenu?.querySelectorAll('.theme-swatch').forEach(item => {
+            item.classList.toggle('active', item.dataset.accentOption === accent);
+        });
     }
 
     function applyTheme(theme) {
         const nextTheme = normalizeTheme(theme);
         const preset = THEME_PRESETS[nextTheme];
-        document.body.classList.remove(...Object.keys(THEME_PRESETS));
+        document.body.classList.remove(...Object.keys(THEME_PRESETS), ...Object.keys(THEME_ALIASES));
         document.body.classList.add(nextTheme);
         localStorage.setItem(STORAGE.theme, nextTheme);
 
@@ -209,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.themeMenu?.querySelectorAll('.theme-menu-item').forEach(item => {
             item.classList.toggle('active', item.dataset.themeOption === nextTheme);
         });
+        applyThemePreferences();
         try {
             window.pywebview?.api?.set_window_theme?.(nextTheme);
         } catch {
@@ -217,7 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initTheme() {
-        applyTheme(localStorage.getItem(STORAGE.theme) || 'dark-mode');
+        const savedTheme = normalizeTheme(localStorage.getItem(STORAGE.theme) || 'dark-mode');
+        if (savedTheme !== localStorage.getItem(STORAGE.theme)) localStorage.setItem(STORAGE.theme, savedTheme);
+        applyTheme(savedTheme);
         window.addEventListener('pywebviewready', () => applyTheme(localStorage.getItem(STORAGE.theme) || 'dark-mode'), { once: true });
         setTimeout(() => applyTheme(localStorage.getItem(STORAGE.theme) || 'dark-mode'), 800);
     }
@@ -450,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.navDownloadBadge.classList.remove('active');
             elements.navDownloadBadge.textContent = '0%';
             elements.navDownloads?.removeAttribute('data-download-progress');
+            elements.navDownloads?.setAttribute('title', 'Downloads');
             return;
         }
         const totals = active.reduce((acc, item) => {
@@ -458,10 +498,13 @@ document.addEventListener('DOMContentLoaded', () => {
             acc.speed += Number(item.download_speed || 0);
             return acc;
         }, { done: 0, total: 0, speed: 0 });
+        const metadataOnly = active.every(item => ['metadata', 'checking'].includes(item.status || '') || !Number(item.total_length || 0));
         const pct = totals.total > 0 ? Math.min(100, Math.round((totals.done / totals.total) * 100)) : 0;
-        elements.navDownloadBadge.textContent = totals.total > 0 ? `${pct}%` : active.length.toString();
+        elements.navDownloadBadge.textContent = metadataOnly ? 'M' : (totals.total > 0 ? `${pct}%` : active.length.toString());
         elements.navDownloadBadge.classList.add('active');
-        elements.navDownloads?.setAttribute('data-download-progress', `${active.length} active · ${totals.total > 0 ? `${pct}%` : 'metadata'} · ${formatSpeed(totals.speed)}`);
+        const tooltip = `Downloads: ${active.length} active - ${metadataOnly ? 'metadata' : totals.total > 0 ? `${pct}%` : 'unknown size'} - ${formatSpeed(totals.speed)}`;
+        elements.navDownloads?.setAttribute('title', tooltip);
+        elements.navDownloads?.setAttribute('data-download-progress', tooltip);
     }
     function formatEta(done, total, speed) {
         if (!speed || !total || done >= total) return '--';
@@ -568,9 +611,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function filterCompatibility(games) {
         if (!state.compatibilityOnly) return games;
+        state.hiddenUnavailableSpecs = 0;
         return games.filter(game => {
             const comp = Components.getCompatibility(game.requirements);
-            return comp && (['pass', 'minimum'].includes(comp.status) || game.requirements?.pending);
+            const visible = comp && (['pass', 'minimum', 'checking'].includes(comp.status) || game.requirements?.pending);
+            if (!visible && comp?.status === 'unknown') state.hiddenUnavailableSpecs += 1;
+            return visible;
         });
     }
 
@@ -619,19 +665,29 @@ document.addEventListener('DOMContentLoaded', () => {
         state.libraryIndexLoaded = false;
     }
 
-    function applyLibraryGridDensity(value) {
-        const allowed = ['auto', 'compact', 'comfortable', 'large'];
+    function applyLibraryGridDensity(value, size = state.libraryGridSize) {
+        const allowed = ['auto', 'compact', 'comfortable', 'large', 'manual'];
         const density = allowed.includes(value) ? value : 'auto';
+        const nextSize = Math.max(176, Math.min(244, Number(size) || 204));
         state.libraryGridDensity = density;
+        state.libraryGridSize = nextSize;
         elements.catalogContainer?.classList.remove(
             'library-grid-auto',
             'library-grid-compact',
             'library-grid-comfortable',
-            'library-grid-large'
+            'library-grid-large',
+            'library-grid-manual'
         );
         elements.catalogContainer?.classList.add(`library-grid-${density}`);
-        if (elements.libraryGridDensity) elements.libraryGridDensity.value = density;
+        elements.catalogContainer?.style.setProperty('--library-card-width', `${nextSize}px`);
+        if (elements.libraryGridAuto) elements.libraryGridAuto.checked = density === 'auto';
+        if (elements.libraryGridSize) {
+            elements.libraryGridSize.value = String(nextSize);
+            elements.libraryGridSize.disabled = density === 'auto';
+        }
         localStorage.setItem(STORAGE.libraryGridDensity, density);
+        localStorage.setItem(STORAGE.libraryGridSize, String(nextSize));
+        localStorage.setItem(STORAGE.libraryGridAuto, density === 'auto' ? '1' : '0');
     }
 
     function renderCards(container, games, emptyText) {
@@ -640,9 +696,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const filtered = filterCompatibility(merged);
         if (!filtered.length) {
             const hasPendingSpecs = state.compatibilityOnly && merged.some(game => game.requirements?.pending);
-            const text = hasPendingSpecs ? 'Checking accurate system requirements for this page...' : emptyText;
+            const hiddenNotice = state.compatibilityOnly && state.hiddenUnavailableSpecs
+                ? ` ${state.hiddenUnavailableSpecs} games with unavailable specs are hidden.`
+                : '';
+            const text = hasPendingSpecs ? 'Checking accurate system requirements for this page...' : `${emptyText}${hiddenNotice}`;
             container.innerHTML = `<div class="empty-state grid-empty-state"><p>${escapeHTML(text)}</p></div>`;
             return;
+        }
+        if (state.compatibilityOnly && state.hiddenUnavailableSpecs) {
+            container.insertAdjacentHTML('beforeend', `<div class="compat-filter-notice">${state.hiddenUnavailableSpecs} games with unavailable specs hidden.</div>`);
         }
         filtered.forEach(game => {
             const card = Components.createGameCard(game);
@@ -1891,10 +1953,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         elements.themeMenu?.addEventListener('click', e => {
             const item = e.target.closest('.theme-menu-item');
-            if (!item) return;
-            applyTheme(item.dataset.themeOption);
-            elements.themePicker?.classList.remove('open');
-            elements.themeToggle?.setAttribute('aria-expanded', 'false');
+            const swatch = e.target.closest('.theme-swatch');
+            if (item) {
+                applyTheme(item.dataset.themeOption);
+                elements.themePicker?.classList.remove('open');
+                elements.themeToggle?.setAttribute('aria-expanded', 'false');
+                return;
+            }
+            if (swatch) {
+                localStorage.setItem(STORAGE.themeAccent, swatch.dataset.accentOption || 'ember');
+                applyThemePreferences();
+            }
+        });
+        elements.themeBackgroundIntensity?.addEventListener('change', e => {
+            localStorage.setItem(STORAGE.themeBackground, e.target.value);
+            applyThemePreferences();
+        });
+        elements.themeMotionMode?.addEventListener('change', e => {
+            localStorage.setItem(STORAGE.themeMotion, e.target.value);
+            applyThemePreferences();
         });
         document.addEventListener('click', e => {
             if (!elements.themePicker || elements.themePicker.contains(e.target)) return;
@@ -1941,8 +2018,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             renderOfflineCatalog();
         });
-        elements.libraryGridDensity?.addEventListener('change', e => {
-            applyLibraryGridDensity(e.target.value);
+        elements.libraryGridAuto?.addEventListener('change', e => {
+            applyLibraryGridDensity(e.target.checked ? 'auto' : 'manual', state.libraryGridSize);
+        });
+        elements.libraryGridSize?.addEventListener('input', e => {
+            applyLibraryGridDensity('manual', e.target.value);
         });
         elements.btnPrevPage.addEventListener('click', () => {
             if (state.currentPage > 1) {
@@ -2223,7 +2303,11 @@ document.addEventListener('DOMContentLoaded', () => {
     migrateStorage();
     initTheme();
     initSidebar();
-    applyLibraryGridDensity(localStorage.getItem(STORAGE.libraryGridDensity) || 'auto');
+    const savedGridSize = Number(localStorage.getItem(STORAGE.libraryGridSize) || 204);
+    const savedGridDensity = localStorage.getItem(STORAGE.libraryGridAuto) === '0'
+        ? 'manual'
+        : (localStorage.getItem(STORAGE.libraryGridDensity) || 'auto');
+    applyLibraryGridDensity(savedGridDensity, savedGridSize);
     bindEvents();
     loadHomepage();
     loadDiagnostics();

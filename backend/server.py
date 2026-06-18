@@ -1,5 +1,5 @@
 """
-server.py â€” Flask application with REST API endpoints.
+server.py - Flask application with REST API endpoints.
 Serves the frontend and provides scraping API.
 """
 
@@ -22,7 +22,7 @@ def set_focus_callback(callback: Callable[[str | None], bool] | None):
     global _focus_callback
     _focus_callback = callback
 
-# ── Flask App Setup ──────────────────────────────────────────────
+# Flask App Setup
 app = Flask(
     __name__,
     static_folder=os.path.join(FRONTEND_DIR),
@@ -30,7 +30,7 @@ app = Flask(
 )
 
 
-# ── Frontend Routes ──────────────────────────────────────────────
+# Frontend Routes
 
 @app.route("/")
 def index():
@@ -49,7 +49,9 @@ def api_app_focus():
     """Restore the existing Arcadia window when a second launch occurs."""
     try:
         payload = request.get_json(silent=True) or {}
-        url = payload.get("url")
+        url = payload.get("url") or payload.get("final_url") or payload.get("original_url")
+        if url:
+            validate_capture_url(url)
         if _focus_callback:
             return jsonify({"success": bool(_focus_callback(url))})
         return jsonify({"success": False, "message": "Focus callback not ready"}), 503
@@ -128,7 +130,7 @@ def api_open_external_url():
         return jsonify({"error": str(e)}), 500
 
 
-# ── API Routes ───────────────────────────────────────────────
+# API Routes
 
 @app.route("/api/search")
 def api_search():

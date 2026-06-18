@@ -18,11 +18,16 @@
     <script>
         (function () {
             try {
+                var aliases = { 'theme-neon-red': 'theme-ember', 'theme-electric-blue': 'theme-abyss' };
                 var savedTheme = localStorage.getItem('arcadia_theme') || 'dark-mode';
-                var allowed = ['dark-mode', 'light-mode', 'theme-neon-red', 'theme-electric-blue'];
+                savedTheme = aliases[savedTheme] || savedTheme;
+                var allowed = ['dark-mode', 'light-mode', 'theme-ember', 'theme-abyss'];
                 var theme = allowed.indexOf(savedTheme) > -1 ? savedTheme : 'dark-mode';
-                document.body.classList.remove('dark-mode', 'light-mode', 'theme-neon-red', 'theme-electric-blue');
+                document.body.classList.remove('dark-mode', 'light-mode', 'theme-neon-red', 'theme-electric-blue', 'theme-ember', 'theme-abyss');
                 document.body.classList.add(theme);
+                document.body.dataset.accent = localStorage.getItem('arcadia_accent') || 'ember';
+                document.body.dataset.background = localStorage.getItem('arcadia_background_intensity') || 'subtle';
+                document.body.dataset.motion = localStorage.getItem('arcadia_motion') || 'normal';
             } catch (err) {
                 document.body.classList.add('dark-mode');
             }
@@ -117,8 +122,30 @@
                         <div class="theme-menu" id="theme-menu" role="menu" aria-label="Theme presets">
                             <button type="button" class="theme-menu-item" data-theme-option="dark-mode" role="menuitem"><span class="arc-icon icon-dark" aria-hidden="true"></span> Arcadia Dark</button>
                             <button type="button" class="theme-menu-item" data-theme-option="light-mode" role="menuitem"><span class="arc-icon icon-light" aria-hidden="true"></span> Arcadia Light</button>
-                            <button type="button" class="theme-menu-item" data-theme-option="theme-neon-red" role="menuitem"><span class="arc-icon icon-color-palette" aria-hidden="true"></span> Neon Red</button>
-                            <button type="button" class="theme-menu-item" data-theme-option="theme-electric-blue" role="menuitem"><span class="arc-icon icon-color-palette" aria-hidden="true"></span> Electric Blue</button>
+                            <button type="button" class="theme-menu-item" data-theme-option="theme-ember" role="menuitem"><span class="arc-icon icon-color-palette" aria-hidden="true"></span> Ember</button>
+                            <button type="button" class="theme-menu-item" data-theme-option="theme-abyss" role="menuitem"><span class="arc-icon icon-color-palette" aria-hidden="true"></span> Abyss</button>
+                            <div class="theme-menu-divider" aria-hidden="true"></div>
+                            <div class="theme-custom-row" role="group" aria-label="Accent color">
+                                <span>Accent</span>
+                                <button type="button" class="theme-swatch swatch-ember active" data-accent-option="ember" title="Ember accent" aria-label="Ember accent"></button>
+                                <button type="button" class="theme-swatch swatch-blue" data-accent-option="blue" title="Blue accent" aria-label="Blue accent"></button>
+                                <button type="button" class="theme-swatch swatch-green" data-accent-option="green" title="Green accent" aria-label="Green accent"></button>
+                            </div>
+                            <label class="theme-custom-field">
+                                <span>Background</span>
+                                <select id="theme-background-intensity" aria-label="Background intensity">
+                                    <option value="off">Off</option>
+                                    <option value="subtle">Subtle</option>
+                                    <option value="immersive">Immersive</option>
+                                </select>
+                            </label>
+                            <label class="theme-custom-field">
+                                <span>Motion</span>
+                                <select id="theme-motion-mode" aria-label="Motion preference">
+                                    <option value="normal">Normal</option>
+                                    <option value="reduced">Reduced</option>
+                                </select>
+                            </label>
                         </div>
                     </div>
                     <label class="compat-toggle" title="Show only games that match this PC">
@@ -384,14 +411,11 @@
                         <button class="library-filter-tab" data-library-filter="epic">Epic</button>
                         <button class="library-filter-tab" data-library-filter="backlog">Backlog</button>
                         <button class="library-filter-tab" data-library-filter="all">All</button>
-                        <label class="library-grid-density" title="Choose My Library card density">
-                            <span>Grid</span>
-                            <select id="library-grid-density">
-                                <option value="auto">Auto</option>
-                                <option value="compact">Compact</option>
-                                <option value="comfortable">Comfortable</option>
-                                <option value="large">Large</option>
-                            </select>
+                        <label class="library-grid-density" title="Adjust My Library card size">
+                            <span>Auto</span>
+                            <input type="checkbox" id="library-grid-auto" checked>
+                            <span>Card Size</span>
+                            <input type="range" id="library-grid-size" min="176" max="244" step="4" value="204" aria-label="My Library card size">
                         </label>
                     </div>
                     <div class="repacks-grid" id="catalog-container">

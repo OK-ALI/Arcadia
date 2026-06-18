@@ -1,5 +1,5 @@
 """
-scraper.py â€” Core scraping module for fitgirl-repacks.site.
+scraper.py - Core scraping module for fitgirl-repacks.site.
 Uses requests + BeautifulSoup. No headless browser needed.
 """
 
@@ -60,13 +60,57 @@ def _clean_title(title: str) -> str:
 def _normalize_match_title(title: str) -> str:
     title = re.sub(r"\([^)]*\)|\[[^]]*\]", " ", title or "")
     title = re.sub(
-        r"(?i)\b(build|v\d[\w.\-+]*|multi\d+|dlc|bonus|bonus(es)?|repack|deluxe|ultimate|edition|complete)\b",
+        r"(?i)\b(build|v\d[\w.\-+]*|multi\d+|dlc|bonus|bonus(es)?|repack|deluxe|ultimate|edition|complete|digital|gold|goty|remaster(ed)?|remake|enhanced|definitive)\b",
         " ",
         title,
     )
+    title = title.translate(str.maketrans({"™": " ", "®": " "}))
     title = title.replace(":", " ")
     title = re.sub(r"[^a-zA-Z0-9]+", " ", title)
     return re.sub(r"\s+", " ", title).strip().lower()
+
+
+def _match_tokens(title: str) -> set[str]:
+    noise = {"a", "an", "and", "the", "of", "for", "with", "edition", "game"}
+    return {token for token in _normalize_match_title(title).split() if token and token not in noise}
+
+
+def _title_confidence(source: str, candidate: str) -> int:
+    source_norm = _normalize_match_title(source)
+    candidate_norm = _normalize_match_title(candidate)
+    if not source_norm or not candidate_norm:
+        return 0
+    if source_norm == candidate_norm:
+        return 100
+    source_compact = re.sub(r"\s+", "", source_norm)
+    candidate_compact = re.sub(r"\s+", "", candidate_norm)
+    source_tokens = _match_tokens(source)
+    candidate_tokens = _match_tokens(candidate)
+    overlap = source_tokens & candidate_tokens
+    if not overlap:
+        return 0
+    token_ratio = len(overlap) / max(1, min(len(source_tokens), len(candidate_tokens)))
+    union_ratio = len(overlap) / max(1, len(source_tokens | candidate_tokens))
+    compact_score = 0
+    if len(source_compact) >= 8 and len(candidate_compact) >= 8:
+        if source_compact in candidate_compact or candidate_compact in source_compact:
+            compact_score = 32
+        else:
+            compact_score = int((1 - min(1, abs(len(source_compact) - len(candidate_compact)) / max(len(source_compact), len(candidate_compact)))) * 12)
+    short_title = min(len(source_tokens), len(candidate_tokens)) <= 2
+    required_ratio = 1.0 if short_title else 0.75
+    if token_ratio < required_ratio:
+        return 0
+    return min(99, int(token_ratio * 46) + int(union_ratio * 22) + compact_score)
+
+
+def _requirements_with_meta(reqs: dict | None, source: str, confidence: str = "high", status: str = "available") -> dict:
+    value = dict(reqs or {})
+    value["requirements_source"] = source
+    value["requirements_confidence"] = confidence
+    value["requirements_status"] = status
+    value["requirements_checked_at"] = int(time.time())
+    return value
 
 
 def _title_bucket(title: str) -> str:
@@ -643,7 +687,7 @@ def _parse_article_card(article) -> dict | None:
     summary = ""
     if summary_el:
         summary = summary_el.get_text(strip=True)
-        # Remove "Continue reading â†’" suffix
+        # Remove Continue reading suffix
         summary = re.sub(r"Continue reading.*$", "", summary).strip()
 
     # Thumbnail
@@ -747,8 +791,7 @@ def _fetch_steam_requirements(title: str, steam_page: str = "") -> dict:
             search.raise_for_status()
             items = (search.json() or {}).get("items") or []
             for item in items[:5]:
-                candidate = _normalize_match_title(item.get("name", ""))
-                if candidate and (candidate in normalized or normalized in candidate):
+                if _title_confidence(title, item.get("name", "")) >= 88:
                     app_id = str(item.get("id") or "")
                     break
         except Exception:
@@ -766,8 +809,8 @@ def _fetch_steam_requirements(title: str, steam_page: str = "") -> dict:
         details.raise_for_status()
         payload = (details.json() or {}).get(str(app_id), {})
         data = payload.get("data") or {}
-        steam_name = _normalize_match_title((data.get("basic") or {}).get("name", ""))
-        if steam_name and not (steam_name in normalized or normalized in steam_name):
+        steam_name = (data.get("basic") or {}).get("name", "")
+        if steam_name and _title_confidence(title, steam_name) < 88:
             return {}
         pc = data.get("pc_requirements") or {}
         minimum = _html_to_requirement_text(pc.get("minimum", ""))
@@ -776,7 +819,62 @@ def _fetch_steam_requirements(title: str, steam_page: str = "") -> dict:
         reqs = _parse_requirements_text(combined)
         if any([reqs.get("ram_min"), reqs.get("ram_rec"), reqs.get("cpu"), reqs.get("gpu")]):
             reqs["steam_page"] = f"https://store.steampowered.com/app/{app_id}/"
-            return reqs
+            return _requirements_with_meta(reqs, "Steam", "high", "available")
+    except Exception:
+        return {}
+    return {}
+
+
+@cache.cached(ttl=CACHE_TTL_LONG)
+def _fetch_pcgamingwiki_requirements(title: str) -> dict:
+    """Best-effort no-key PCGamingWiki requirements fallback for confident title matches."""
+    normalized = _normalize_match_title(title)
+    if not normalized:
+        return {}
+    try:
+        search = requests.get(
+            "https://www.pcgamingwiki.com/w/api.php",
+            params={
+                "action": "query",
+                "list": "search",
+                "srsearch": normalized,
+                "format": "json",
+                "utf8": 1,
+                "srlimit": 5,
+            },
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+        )
+        search.raise_for_status()
+        results = (search.json() or {}).get("query", {}).get("search") or []
+        page_title = ""
+        for item in results:
+            candidate = item.get("title", "")
+            if _title_confidence(title, candidate) >= 90:
+                page_title = candidate
+                break
+        if not page_title:
+            return {}
+        page = requests.get(
+            "https://www.pcgamingwiki.com/w/api.php",
+            params={
+                "action": "parse",
+                "page": page_title,
+                "prop": "wikitext",
+                "format": "json",
+                "utf8": 1,
+            },
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+        )
+        page.raise_for_status()
+        wikitext = ((page.json() or {}).get("parse", {}).get("wikitext", {}) or {}).get("*", "")
+        if not wikitext:
+            return {}
+        reqs = _parse_requirements_text(wikitext.replace("|", "\n").replace("=", ":"))
+        if any([reqs.get("ram_min"), reqs.get("ram_rec"), reqs.get("cpu"), reqs.get("gpu")]):
+            reqs["pcgamingwiki_page"] = f"https://www.pcgamingwiki.com/wiki/{quote_plus(page_title.replace(' ', '_'))}"
+            return _requirements_with_meta(reqs, "PCGamingWiki", "medium", "available")
     except Exception:
         return {}
     return {}
@@ -790,7 +888,13 @@ def _display_requirements(game: dict | None = None) -> dict:
         str(reqs.get("gpu") or "").strip(),
         str(reqs.get("cpu") or "").strip(),
     ])
-    return reqs if has_real else {"pending": True}
+    if has_real:
+        reqs.setdefault("requirements_source", "Source Page")
+        reqs.setdefault("requirements_confidence", "high")
+        reqs.setdefault("requirements_status", "available")
+        reqs.setdefault("requirements_checked_at", int(time.time()))
+        return reqs
+    return _requirements_with_meta({"pending": True}, "Arcadia", "low", "checking")
 
 
 def hydrate_requirements(slugs: list[str], limit: int = 24) -> dict:
@@ -808,7 +912,14 @@ def hydrate_requirements(slugs: list[str], limit: int = 24) -> dict:
     def _load(slug: str) -> tuple[str, dict]:
         details = get_game_details(slug) or {}
         reqs = details.get("requirements") or {}
-        return slug, _display_requirements({"requirements": reqs})
+        display = _display_requirements({"requirements": reqs})
+        if display.get("pending"):
+            wiki_reqs = _fetch_pcgamingwiki_requirements(details.get("title") or slug)
+            if wiki_reqs:
+                display = wiki_reqs
+        if display.get("pending"):
+            display = _requirements_with_meta({}, "Arcadia", "low", "unavailable")
+        return slug, display
 
     if clean_slugs:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(clean_slugs))) as executor:
@@ -1015,7 +1126,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
     if not article:
         return None
 
-    # â”€â”€ Basic Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Basic Info
     title_el = article.select_one(".entry-title")
     title = title_el.get_text(strip=True) if title_el else ""
 
@@ -1028,7 +1139,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
     tag_els = article.select("footer .tag-links a, .entry-meta .tag-links a")
     tags = list(dict.fromkeys(t.get_text(strip=True) for t in tag_els))  # Dedupe
 
-    # â”€â”€ Content Parsing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Content Parsing
     content = article.select_one(".entry-content")
     content_html = str(content) if content else ""
     content_text = content.get_text("\n", strip=True) if content else ""
@@ -1045,7 +1156,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
     # Sizes
     sizes = _extract_size_info(content_html)
 
-    # â”€â”€ Parse System Requirements (For Scanner Matcher) â”€â”€â”€â”€â”€â”€â”€
+    # Parse System Requirements
     req_ram_min = 0
     req_ram_rec = 0
     req_space = 0
@@ -1104,7 +1215,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
     lang_match = re.search(r"Languages:\s*(.*?)(?:\n|Original Size:)", content_text)
     languages = lang_match.group(1).strip() if lang_match else ""
 
-    # â”€â”€ Download Links â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Download Links
     direct_links = []
     torrent_links = []
     magnet_link = ""
@@ -1140,7 +1251,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
                         elif "torrent file" in text.lower() or ".torrent" in text.lower():
                             torrent_links.append({"name": text, "url": href})
 
-    # â”€â”€ Screenshots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Screenshots
     screenshots = []
     if content:
         for h3 in content.select("h3"):
@@ -1164,7 +1275,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
         if video_el:
             video = video_el.get("src", "")
 
-    # â”€â”€ Repack Features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Repack Features
     features = []
     if content:
         for h3 in content.select("h3"):
@@ -1174,7 +1285,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
                     features = [li.get_text(strip=True) for li in ul.select("li")]
                 break
 
-    # â”€â”€ Spoilers / Expandable Sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Spoilers / Expandable Sections
     description = ""
     file_list = ""
     if content:
@@ -1225,6 +1336,10 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
             "space": req_space,
             "cpu": req_cpu,
             "gpu": req_gpu,
+            "requirements_source": "Source Page",
+            "requirements_confidence": "high",
+            "requirements_status": "available" if any([req_ram_min, req_ram_rec, req_cpu, req_gpu]) else "checking",
+            "requirements_checked_at": int(time.time()),
         }
     }
     result.update(resolve_official_links(result))
@@ -1241,9 +1356,26 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
             result["requirements"] = {
                 **source_reqs,
                 **{k: v for k, v in steam_reqs.items() if k in {"ram_min", "ram_rec", "space", "cpu", "gpu"} and v},
+                "requirements_source": steam_reqs.get("requirements_source", "Steam"),
+                "requirements_confidence": steam_reqs.get("requirements_confidence", "high"),
+                "requirements_status": steam_reqs.get("requirements_status", "available"),
+                "requirements_checked_at": steam_reqs.get("requirements_checked_at", int(time.time())),
             }
             if steam_reqs.get("steam_page") and not result.get("steam_page"):
                 result["steam_page"] = steam_reqs["steam_page"]
+        else:
+            wiki_reqs = _fetch_pcgamingwiki_requirements(title)
+            if wiki_reqs:
+                result["requirements"] = {
+                    **source_reqs,
+                    **{k: v for k, v in wiki_reqs.items() if k in {"ram_min", "ram_rec", "space", "cpu", "gpu"} and v},
+                    "requirements_source": wiki_reqs.get("requirements_source", "PCGamingWiki"),
+                    "requirements_confidence": wiki_reqs.get("requirements_confidence", "medium"),
+                    "requirements_status": wiki_reqs.get("requirements_status", "available"),
+                    "requirements_checked_at": wiki_reqs.get("requirements_checked_at", int(time.time())),
+                }
+            elif not has_real_reqs:
+                result["requirements"] = _requirements_with_meta(source_reqs, "Arcadia", "low", "unavailable")
 
     # --- Game Updates ---
     updates = {"instructions": "", "links": []}
@@ -1284,7 +1416,7 @@ def get_upcoming_repacks() -> list:
         if title_el and "Upcoming" in title_el.get_text():
             upcoming = []
             for span in article.select('span[style*="color: #339966"]'):
-                text = span.get_text(strip=True).lstrip("â‡¢").strip()
+                text = span.get_text(strip=True).strip()
                 if text:
                     upcoming.append(text)
             return upcoming

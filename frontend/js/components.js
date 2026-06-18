@@ -94,9 +94,10 @@ const Components = {
 
     getCompatibility(reqs) {
         if (!reqs || !window.userSpecs) return null;
-        if (reqs.pending) {
+        const reqStatus = String(reqs.requirements_status || '').toLowerCase();
+        if (reqs.pending || reqStatus === 'checking') {
             return {
-                status: 'unknown',
+                status: 'checking',
                 label: 'Checking Specs',
                 notes: ['Requirements are loading'],
                 ram: { user: parseInt(window.userSpecs.ram ?? window.userSpecs.ram_gb, 10) || 0, min: 0, rec: 0 },
@@ -114,7 +115,7 @@ const Components = {
         if (!hasRamRequirement && !hasGpuRequirement) {
             return {
                 status: 'unknown',
-                label: 'Unknown Specs',
+                label: reqStatus === 'unavailable' ? 'Specs Unavailable' : 'Unknown Specs',
                 notes: ['No hardware requirements found'],
                 ram: { user: userRam || 0, min: 0, rec: 0 },
                 gpu: { user: window.userSpecs.gpu || 'Unknown GPU', required: 'N/A', status: 'unknown' }
@@ -154,7 +155,7 @@ const Components = {
             gpuStatus = 'unknown';
             if (status !== 'fail') {
                 status = 'unknown';
-                label = 'Unknown Specs';
+                label = 'Specs Unavailable';
             }
             notes.push('GPU requirement could not be compared accurately');
         }
@@ -475,6 +476,11 @@ const Components = {
                     <div class="comp-panel-header">
                         <div class="comp-panel-title"><i class="fa-solid fa-laptop-code text-pink"></i> Hardware Compatibility Check</div>
                         <div class="comp-status-badge ${comp?.status || 'unknown'}">${this.escape(comp?.label || 'Unknown Specs')}</div>
+                    </div>
+                    <div class="comp-source-line">
+                        <span>Source: ${this.escape(reqs.requirements_source || 'Arcadia')}</span>
+                        <span>${this.escape(reqs.requirements_confidence ? `${reqs.requirements_confidence} confidence` : '')}</span>
+                        <span>${this.escape(reqs.requirements_checked_at ? new Date(reqs.requirements_checked_at * 1000).toLocaleString() : '')}</span>
                     </div>
                     <div class="comp-specs-grid">
                         <div class="comp-spec-item">
