@@ -36,8 +36,18 @@ if (-not $Python) {
 
 & $Python -m PyInstaller "$Root\Arcadia.spec" --noconfirm --clean
 
+$ExtensionSource = "$Root\arcadia-extension"
+$ExtensionTarget = "$Root\dist\Arcadia\arcadia-extension"
+if (Test-Path -LiteralPath $ExtensionSource) {
+    if (Test-Path -LiteralPath $ExtensionTarget) {
+        Remove-Item -Recurse -Force $ExtensionTarget
+    }
+    Copy-Item -Recurse -Force $ExtensionSource $ExtensionTarget
+}
+
 $Required = @(
     "$Root\dist\Arcadia\Arcadia.exe",
+    "$Root\dist\Arcadia\arcadia-extension\manifest.json",
     "$Root\dist\Arcadia\_internal\libtorrent\libcrypto-1_1-x64.dll",
     "$Root\dist\Arcadia\_internal\libtorrent\libssl-1_1-x64.dll",
     "$Root\dist\Arcadia\_internal\webview\lib\Microsoft.Web.WebView2.Core.dll"

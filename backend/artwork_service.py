@@ -40,16 +40,24 @@ _TITLE_NOISE = {
     "edition",
     "fitgirl",
     "gold",
+    "goty",
     "launcher",
     "lossless",
     "multi",
     "multiplayer",
+    "origin",
+    "pc",
+    "premium",
     "repack",
+    "remastered",
+    "remake",
     "soundtrack",
+    "steam",
     "the",
     "ultimate",
     "unlocker",
     "version",
+    "windows",
 }
 
 
@@ -59,8 +67,9 @@ def _clean_title(value: str) -> str:
     text = re.sub(r"\([^)]*\)|\[[^]]*\]", " ", text)
     text = re.sub(r"(?i)\b(v|ver|version|build)\s*[\d][\w.\-]*", " ", text)
     text = re.sub(r"(?i)\b\d+\s*(dlc|dlcs|bonus|bonuses)\b", " ", text)
-    text = re.sub(r"(?i)\b(repack|lossless|fitgirl|dodi|multi\d*|unlocker|bonus soundtrack)\b", " ", text)
-    text = re.sub(r"(?i)\b(digital deluxe|deluxe|ultimate|gold|complete)\s+edition\b", " ", text)
+    text = re.sub(r"(?i)\b(repack|lossless|fitgirl|dodi|multi\d*|unlocker|bonus soundtrack|steam library|epic games|local install)\b", " ", text)
+    text = re.sub(r"(?i)\b(digital deluxe|deluxe|ultimate|gold|complete|premium|goty|collector'?s?)\s+edition\b", " ", text)
+    text = re.sub(r"(?i)\b(edition|remastered|remake|enhanced|definitive)\b", " ", text)
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
@@ -94,7 +103,12 @@ def _catalog_match_score(source_slug: str, source_title: str, candidate: dict[st
         if len(shorter) >= 8 and shorter in longer:
             score += 86
             reasons.append("title contains catalog title")
-        score += int(SequenceMatcher(None, source_compact, candidate_compact).ratio() * 40)
+        score += int(SequenceMatcher(None, source_compact, candidate_compact).ratio() * 45)
+    if source_slug_compact and candidate_slug_compact:
+        shorter_slug, longer_slug = sorted((source_slug_compact, candidate_slug_compact), key=len)
+        if len(shorter_slug) >= 8 and shorter_slug in longer_slug:
+            score += 18
+            reasons.append("slug contains catalog slug")
     if source_tokens and candidate_tokens:
         overlap = source_tokens & candidate_tokens
         union = source_tokens | candidate_tokens
@@ -149,6 +163,27 @@ def _candidate_image(game: dict[str, Any]) -> str:
     return ""
 
 
+def _hydrate_catalog_candidate_image(game: dict[str, Any]) -> str:
+    image = _candidate_image(game)
+    if image:
+        return image
+    slug = str(game.get("slug") or "")
+    if not slug:
+        return ""
+    try:
+        details = scraper.get_game_details(slug)
+    except Exception:
+        details = None
+    if isinstance(details, dict):
+        image = _candidate_image(details)
+        if image:
+            return image
+    try:
+        return scraper._get_page_cover_only(slug)
+    except Exception:
+        return ""
+
+
 def _entry(slug: str) -> dict[str, Any] | None:
     return offline_library.state.get("games", {}).get(slug)
 
@@ -160,12 +195,22 @@ def _user(slug: str) -> dict[str, Any]:
     return entry.setdefault("user", {})
 
 
-def _set_artwork(slug: str, path: str, source: str) -> dict[str, Any]:
+def _set_artwork(slug: str, path: str, source: str, catalog_match: dict[str, Any] | None = None) -> dict[str, Any]:
     user = _user(slug)
     user["artwork_path"] = path
     user["artwork_source"] = source
     if source != "manual":
         user.setdefault("manual_artwork_path", "")
+    if catalog_match:
+        user["matched_catalog_slug"] = str(catalog_match.get("slug", ""))
+        user["matched_catalog_title"] = str(catalog_match.get("title", ""))
+        user["matched_catalog_score"] = int(catalog_match.get("score") or 0)
+        user["matched_catalog_reason"] = ", ".join(catalog_match.get("reasons") or [])
+    elif source != "arcadia_catalog":
+        user["matched_catalog_slug"] = ""
+        user["matched_catalog_title"] = ""
+        user["matched_catalog_score"] = 0
+        user["matched_catalog_reason"] = ""
     entry = _entry(slug)
     if entry:
         entry["updated_at"] = __import__("time").time()
@@ -220,19 +265,21 @@ def _catalog_artwork(slug: str, title: str) -> tuple[str, dict[str, Any] | None]
     matches: list[tuple[int, dict[str, Any], list[str], str]] = []
     for game in _catalog_candidates():
         score, reasons = _catalog_match_score(slug, title, game)
-        image = _candidate_image(game)
-        if score >= 82 and image:
+        if score >= 82:
+            image = _candidate_image(game)
             matches.append((score, game, reasons, image))
     if not matches:
         return "", None
     matches.sort(key=lambda item: (item[0], bool(item[3])), reverse=True)
-    best_score, best_game, best_reasons, image = matches[0]
-    if image.startswith("/api/"):
-        return image, {"slug": best_game.get("slug", ""), "title": best_game.get("title", ""), "score": best_score, "reasons": best_reasons}
-    if image:
-        cached = offline_library.cache_artwork_url(slug, image)
-        if cached:
-            return cached, {"slug": best_game.get("slug", ""), "title": best_game.get("title", ""), "score": best_score, "reasons": best_reasons}
+    for best_score, best_game, best_reasons, image in matches[:5]:
+        if not image:
+            image = _hydrate_catalog_candidate_image(best_game)
+        if image.startswith("/api/"):
+            return image, {"slug": best_game.get("slug", ""), "title": best_game.get("title", ""), "score": best_score, "reasons": best_reasons}
+        if image:
+            cached = offline_library.cache_artwork_url(slug, image)
+            if cached:
+                return cached, {"slug": best_game.get("slug", ""), "title": best_game.get("title", ""), "score": best_score, "reasons": best_reasons}
     return "", None
 
 
@@ -296,7 +343,7 @@ def refresh_artwork(slugs: list[str] | None = None) -> dict[str, Any]:
         if library.get("manual_artwork_path"):
             skipped.append({"slug": slug, "reason": "manual artwork"})
             continue
-        if game.get("cover") and game.get("cover") != "/assets/game-cover-placeholder.png" and library.get("artwork_path"):
+        if not wanted and game.get("cover") and game.get("cover") != "/assets/game-cover-placeholder.png" and library.get("artwork_path"):
             skipped.append({"slug": slug, "reason": "already cached"})
             continue
         source = str(library.get("library_source") or "").lower()
@@ -337,17 +384,18 @@ def refresh_artwork(slugs: list[str] | None = None) -> dict[str, Any]:
         if not path:
             catalog_title = game.get("title", "") or epic_ids.get("epic_display_name", "")
             path, catalog_match = _catalog_artwork(slug, catalog_title)
-            artwork_source = "arcadia_cache" if path else ""
+            artwork_source = "arcadia_catalog" if path else ""
         if not path and epic_ids.get("epic_display_name"):
             path, catalog_match = _catalog_artwork(slug, epic_ids["epic_display_name"])
-            artwork_source = "arcadia_cache" if path else ""
+            artwork_source = "arcadia_catalog" if path else ""
         if path:
-            _set_artwork(slug, path, artwork_source)
+            _set_artwork(slug, path, artwork_source, catalog_match)
             item = {"slug": slug, "source": artwork_source, "path": path}
             if catalog_match:
                 item["matched_catalog_slug"] = str(catalog_match.get("slug", ""))
                 item["matched_catalog_title"] = str(catalog_match.get("title", ""))
                 item["match_score"] = str(catalog_match.get("score", ""))
+                item["match_reason"] = ", ".join(catalog_match.get("reasons") or [])
             updated.append(item)
         else:
             user = _user(slug)

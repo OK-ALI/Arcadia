@@ -21,6 +21,40 @@ const Components = {
             shot.thumb_cached || shot.thumb || shot.full || this.fallbackCover;
     },
 
+    formatArtworkSource(value = '') {
+        const source = String(value || 'placeholder').toLowerCase();
+        const labels = {
+            manual: 'Manual',
+            steam: 'Steam',
+            epic: 'Epic',
+            arcadia_catalog: 'Arcadia Catalog',
+            arcadia_cache: 'Arcadia Catalog',
+            placeholder: 'Placeholder'
+        };
+        return labels[source] || source.replace(/[_-]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+    },
+
+    formatLibrarySource(value = '') {
+        const source = String(value || '').toLowerCase();
+        const labels = {
+            arcadia_download: 'Arcadia Download',
+            epic: 'Epic Games',
+            folder_scan: 'Local Install',
+            manual: 'Manual Link',
+            saved: 'Saved',
+            start_menu: 'Start Menu',
+            steam: 'Steam Library'
+        };
+        return labels[source] || this.formatArtworkSource(source || 'local');
+    },
+
+    formatDate(value = '') {
+        if (!value) return 'N/A';
+        const date = new Date(value);
+        if (!Number.isNaN(date.getTime())) return date.toLocaleDateString();
+        return this.escape(value);
+    },
+
     parseGpuTier(value = '') {
         const gpu = String(value).toLowerCase();
         if (!gpu || /unknown|n\/a|integrated/.test(gpu)) return null;
@@ -146,7 +180,7 @@ const Components = {
         const comp = this.getCompatibility(game.requirements);
         const library = game.library || game.offline_user || null;
         const libraryStatus = library ? this.libraryStatus(library) : null;
-        const artworkSource = this.escape(library?.artwork_source || game.artwork_source || 'placeholder');
+        const artworkSource = this.escape(this.formatArtworkSource(library?.artwork_source || game.artwork_source || 'placeholder'));
         if (libraryStatus && libraryStatus.className !== 'backlog') card.classList.add(`library-${libraryStatus.className}`);
         const badgeHTML = comp ? `<div class="card-compatibility-badge ${comp.status}">${this.escape(comp.label)}</div>` : '';
         const libraryBadgeHTML = libraryStatus && libraryStatus.className !== 'backlog' ? `
@@ -341,7 +375,7 @@ const Components = {
         const comp = this.getCompatibility(game.requirements);
         const library = game.library || game.offline_user || null;
         const libraryStatus = library ? this.libraryStatus(library) : null;
-        const artworkSource = this.escape(library?.artwork_source || game.artwork_source || 'placeholder');
+        const artworkSource = this.escape(this.formatArtworkSource(library?.artwork_source || game.artwork_source || 'placeholder'));
         const isInstalledLinked = Boolean(library?.install_status === 'installed' && library?.executable_path);
         const canLaunchLibrary = Boolean(library?.install_status === 'installed' && library?.executable_path && !library?.running);
         const libraryRunning = Boolean(library?.running);
@@ -559,6 +593,17 @@ const Components = {
             </div>
         ` : '';
 
+        const platformSource = String(library?.library_source || '').toLowerCase();
+        const isPlatformLibrary = !!library && ['steam', 'epic', 'folder_scan', 'start_menu', 'manual'].includes(platformSource);
+        const installedSizeText = library ? this.formatStorage(library.installed_size_bytes, library.installed_size_gb) : '';
+        const sizeMetaHTML = isPlatformLibrary ? `
+                        <li class="modal-meta-item"><span class="meta-label">Installed Size</span><span class="meta-value meta-value-strong text-green">${this.escape(installedSizeText || 'N/A')}</span></li>
+                        <li class="modal-meta-item"><span class="meta-label">Library Source</span><span class="meta-value">${this.escape(this.formatLibrarySource(library.library_source || 'manual'))}</span></li>
+        ` : `
+                        <li class="modal-meta-item"><span class="meta-label">Original Size</span><span class="meta-value">${this.escape(game.original_size || 'N/A')}</span></li>
+                        <li class="modal-meta-item"><span class="meta-label">Download Size</span><span class="meta-value meta-value-strong text-green">${this.escape(game.repack_size || 'N/A')}</span></li>
+        `;
+
         return `
             <div class="modal-grid">
                 <div>
@@ -573,9 +618,8 @@ const Components = {
                         <li class="modal-meta-item"><span class="meta-label">Genres</span><span class="meta-value">${this.escape(game.genres || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Companies</span><span class="meta-value">${this.escape(game.companies || 'N/A')}</span></li>
                         <li class="modal-meta-item"><span class="meta-label">Languages</span><span class="meta-value">${this.escape(game.languages || 'N/A')}</span></li>
-                        <li class="modal-meta-item"><span class="meta-label">Original Size</span><span class="meta-value">${this.escape(game.original_size || 'N/A')}</span></li>
-                        <li class="modal-meta-item"><span class="meta-label">Download Size</span><span class="meta-value meta-value-strong text-green">${this.escape(game.repack_size || 'N/A')}</span></li>
-                        <li class="modal-meta-item"><span class="meta-label">Release Date</span><span class="meta-value">${game.date ? new Date(game.date).toLocaleDateString() : 'N/A'}</span></li>
+                        ${sizeMetaHTML}
+                        <li class="modal-meta-item"><span class="meta-label">Release Date</span><span class="meta-value">${this.formatDate(game.date)}</span></li>
                     </ul>
                     <div class="modal-actions">
                         ${primaryLaunchHTML}

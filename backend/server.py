@@ -208,7 +208,7 @@ def api_library_visible_artwork():
         slugs = payload.get("slugs") or []
         if not isinstance(slugs, list):
             slugs = []
-        limit = int(payload.get("limit") or 24)
+        limit = int(payload.get("limit") or 8)
         return jsonify(scraper.hydrate_visible_artwork(slugs, limit=limit))
     except Exception as e:
         return jsonify({"error": str(e)}), 500

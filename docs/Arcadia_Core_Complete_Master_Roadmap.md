@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.3.0  
-**Latest Stable:** v0.3.0  
+**Status:** Current as of v0.3.1  
+**Latest Stable:** v0.3.1  
 
 ---
 
@@ -38,7 +38,8 @@ v0.2.0 - Own & Play MVP                      Shipped and stable
 v0.2.1 - Smart Relink & Executable Detection Shipped
 v0.2.2 - Start Menu Import + Hover Library Cards Shipped and stable
 v0.2.3 - Start Menu Shortcut + Hover Fixes   Shipped and stable
-v0.3.0 - UI Identity, Naming, Icons & Themes Current
+v0.3.0 - UI Identity, Naming, Icons & Themes Shipped and stable
+v0.3.1 - Reliable Catalog Artwork & Matching Current
 v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
@@ -356,7 +357,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: v0.3.0 current; later v0.3.x releases planned.
+Status: v0.3.1 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -365,10 +366,11 @@ Planned split:
 
 ```text
 v0.3.0 - UI Identity, Naming, Icons & Preset Themes
-v0.3.1 - Theme Refinement & Accessibility
-v0.3.2 - Optional Soundtrack Experience
-v0.3.3 - Collections & Journal Foundation
-v0.3.4 - Save Management & Personal Dashboard
+v0.3.1 - Reliable Catalog Artwork & Library Matching
+v0.3.2 - Theme Refinement & Accessibility
+v0.3.3 - Optional Soundtrack Experience
+v0.3.4 - Collections & Journal Foundation
+v0.3.5 - Save Management & Personal Dashboard
 ```
 
 ## v0.3.0 UI Identity, Naming, Icons And Preset Themes
@@ -393,6 +395,19 @@ v0.3.4 - Save Management & Personal Dashboard
 - Persist selected theme locally.
 - Ensure icons adapt across all preset themes with CSS mask/currentColor
   rendering.
+
+## v0.3.1 Reliable Catalog Artwork And Library Matching
+
+- Improve source-page image extraction for OpenGraph/Twitter images, lazy-loaded
+  WordPress images, linked image targets, and content images.
+- Repair missing visible Gallery/Search/Latest artwork by hydrating source pages
+  and updating the cached catalog entry.
+- Improve title matching for installed/local/platform games by ignoring edition,
+  platform, trademark, repack, version, and DLC noise.
+- Cache matched My Library artwork under Arcadia app data so it survives restart
+  and offline use.
+- Keep manual artwork overrides protected and show clearer artwork source labels
+  such as Manual, Steam, Epic, Arcadia Catalog, and Placeholder.
 
 ## Naming And Product Language
 

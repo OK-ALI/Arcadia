@@ -209,10 +209,17 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.themeMenu?.querySelectorAll('.theme-menu-item').forEach(item => {
             item.classList.toggle('active', item.dataset.themeOption === nextTheme);
         });
+        try {
+            window.pywebview?.api?.set_window_theme?.(nextTheme);
+        } catch {
+            // Native title bar color sync is best-effort on Windows.
+        }
     }
 
     function initTheme() {
         applyTheme(localStorage.getItem(STORAGE.theme) || 'dark-mode');
+        window.addEventListener('pywebviewready', () => applyTheme(localStorage.getItem(STORAGE.theme) || 'dark-mode'), { once: true });
+        setTimeout(() => applyTheme(localStorage.getItem(STORAGE.theme) || 'dark-mode'), 800);
     }
 
 
@@ -675,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         filtered.forEach(game => {
             const card = Components.createLibraryCard(game);
-            card.addEventListener('click', () => openGameDetails(game.slug));
+            card.addEventListener('click', () => openGameDetails(game.slug, { offline: true }));
             card.querySelectorAll('button').forEach(btn => btn.addEventListener('click', event => event.stopPropagation()));
             card.querySelector('.library-launch')?.addEventListener('click', async e => launchLibraryGame(game.slug, e.currentTarget));
             card.querySelector('.library-open-folder')?.addEventListener('click', async e => {
@@ -891,7 +898,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await refreshLibraryIndex();
             const data = await API.getLatest(state.currentPage);
-            renderCards(elements.latestContainer, data.games || [], 'No games found on this page.');
+            const games = data.games || [];
+            renderCards(elements.latestContainer, games, 'No games found on this page.');
+            hydrateMissingCardArtwork(elements.latestContainer, games, 'No games found on this page.');
             state.hasLatestNext = data.has_next;
             elements.pageIndicator.textContent = state.currentPage;
             elements.btnPrevPage.disabled = state.currentPage <= 1;
@@ -911,7 +920,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await refreshLibraryIndex();
             const data = await API.search(state.currentQuery, state.searchPage);
-            renderCards(elements.searchResultsContainer, data.games || [], 'No games match this query.');
+            const games = data.games || [];
+            renderCards(elements.searchResultsContainer, games, 'No games match this query.');
+            hydrateMissingCardArtwork(elements.searchResultsContainer, games, 'No games match this query.', {
+                query: state.currentQuery,
+                page: state.searchPage
+            });
             state.hasSearchNext = data.has_next;
             elements.searchPageIndicator.textContent = state.searchPage;
             elements.btnSearchPrev.disabled = state.searchPage <= 1;
@@ -992,22 +1006,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function startGalleryArtworkHydration(games = [], requestId = state.galleryRequestId) {
+    async function hydrateMissingCardArtwork(container, games = [], emptyText = 'No games found.', guard = {}) {
+        const expectedQuery = guard.query;
+        const expectedPage = guard.page;
+        const limit = Math.max(1, Math.min(12, Number(guard.limit || 8)));
         try {
             const missingVisibleSlugs = games
                 .filter(game => game.slug && !game.thumbnail && !game.cover)
                 .map(game => game.slug)
-                .slice(0, 24);
-            if (!missingVisibleSlugs.length) return;
+                .slice(0, limit);
+            if (!missingVisibleSlugs.length) return null;
             const data = await API.hydrateVisibleArtwork(missingVisibleSlugs, missingVisibleSlugs.length);
-            if (requestId !== state.galleryRequestId) return;
+            if (expectedQuery !== undefined && (expectedQuery !== state.currentQuery || expectedPage !== state.searchPage)) return null;
             const artwork = data.artwork || {};
-            if (!Object.keys(artwork).length) return;
-            state.galleryGames = state.galleryGames.map(game => (
+            if (!Object.keys(artwork).length) return null;
+            const hydrated = games.map(game => (
                 artwork[game.slug] ? { ...game, thumbnail: artwork[game.slug] } : game
             ));
-            renderCards(elements.galleryContainer, state.galleryGames, 'No games match this gallery page yet.');
-            renderGalleryIndexStatus({ total: state.galleryGames.length, message: 'Gallery ready', done: true, artwork_cached: Object.keys(artwork).length });
+            renderCards(container, hydrated, emptyText);
+            return { hydrated, artwork };
+        } catch {
+            return null;
+        }
+    }
+
+    async function startGalleryArtworkHydration(games = [], requestId = state.galleryRequestId) {
+        try {
+            if (requestId !== state.galleryRequestId) return;
+            await new Promise(resolve => setTimeout(resolve, 450));
+            if (requestId !== state.galleryRequestId) return;
+            const result = await hydrateMissingCardArtwork(elements.galleryContainer, games, 'No games match this gallery page yet.', { limit: 8 });
+            if (requestId !== state.galleryRequestId || !result) return;
+            state.galleryGames = result.hydrated;
+            renderGalleryIndexStatus({ total: state.galleryGames.length, message: 'Gallery ready', done: true, artwork_cached: Object.keys(result.artwork).length });
         } catch {
             // Leave fallback images in place if artwork loading fails.
         }
@@ -1120,19 +1151,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 15 * 60 * 1000);
     }
 
-    async function openGameDetails(slug, forceRefresh = false) {
+    async function openGameDetails(slug, options = {}) {
+        const detailOptions = typeof options === 'boolean' ? { forceRefresh: options } : (options || {});
+        const forceRefresh = !!detailOptions.forceRefresh;
+        const preferOffline = !!detailOptions.offline;
         elements.modalContentBody.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading game details...</p></div>';
         elements.gameModal.classList.add('active');
         try {
             let game = null;
-            try {
-                game = await API.getGameDetails(slug, forceRefresh);
-            } catch {
-                const wlGames = readJSON(STORAGE.wishlistGames, []);
-                game = wlGames.find(g => g.slug === slug);
-                if (!game) {
-                    const offlineData = await API.getOfflineCatalog();
-                    game = (offlineData.games || []).find(g => g.slug === slug);
+            if (preferOffline) {
+                try {
+                    game = await API.getOfflineGame(slug);
+                } catch {
+                    game = null;
+                }
+            }
+            if (!game) {
+                try {
+                    game = await API.getGameDetails(slug, forceRefresh);
+                } catch {
+                    const wlGames = readJSON(STORAGE.wishlistGames, []);
+                    game = wlGames.find(g => g.slug === slug);
+                    if (!game) {
+                        const offlineData = await API.getOfflineCatalog();
+                        game = (offlineData.games || []).find(g => g.slug === slug);
+                    }
                 }
             }
             if (!game) throw new Error('Game is not available offline.');
@@ -1151,6 +1194,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {
                 // The game may not be saved in My Library yet.
             }
+            const reopenAsLibraryGame = preferOffline || !!game.library || !!game.offline_user;
             elements.modalContentBody.innerHTML = Components.renderGameDetails(game);
 
             const dlBtn = document.getElementById('modal-download-btn');
@@ -1177,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await API.saveGameOffline(slug);
                     Components.showToast('Saved to My Library.', 'success');
                     markLibraryIndexDirty();
-                    await openGameDetails(slug);
+                    await openGameDetails(slug, { offline: true });
                 } catch (err) {
                     Components.showToast(`Library save failed: ${err.message}`, 'error');
                 } finally {
@@ -1207,7 +1251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await API.setOfflineArtwork(slug, filePath);
                     Components.showToast('Artwork updated.', 'success');
                     markLibraryIndexDirty();
-                    await openGameDetails(slug);
+                    await openGameDetails(slug, { offline: reopenAsLibraryGame });
                     await renderOfflineCatalog();
                 } catch (err) {
                     Components.showToast(`Artwork update failed: ${err.message}`, 'error');
@@ -1221,7 +1265,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await API.refreshOfflineArtwork([slug]);
                     Components.showToast('Artwork refresh complete.', 'success');
                     markLibraryIndexDirty();
-                    await openGameDetails(slug);
+                    await openGameDetails(slug, { offline: reopenAsLibraryGame });
                     await renderOfflineCatalog();
                 } catch (err) {
                     Components.showToast(`Artwork refresh failed: ${err.message}`, 'error');
@@ -1232,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await API.resetOfflineArtwork(slug);
                     Components.showToast('Artwork reset.', 'success');
                     markLibraryIndexDirty();
-                    await openGameDetails(slug);
+                    await openGameDetails(slug, { offline: reopenAsLibraryGame });
                     await renderOfflineCatalog();
                 } catch (err) {
                     Components.showToast(`Artwork reset failed: ${err.message}`, 'error');
@@ -1247,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
                 try {
-                    await openGameDetails(slug, true);
+                    await openGameDetails(slug, { forceRefresh: true, offline: reopenAsLibraryGame });
                     Components.showToast('Checked for updates. Catalog is up to date.', 'success');
                 } catch (err) {
                     Components.showToast(`Check for updates failed: ${err.message}`, 'error');

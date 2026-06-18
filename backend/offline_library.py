@@ -182,6 +182,10 @@ class OfflineLibrary:
                 "epic_catalog_item_id": metadata.get("epic_catalog_item_id", ""),
                 "epic_namespace": metadata.get("epic_namespace", ""),
                 "epic_app_name": metadata.get("epic_app_name", ""),
+                "matched_catalog_slug": metadata.get("matched_catalog_slug", ""),
+                "matched_catalog_title": metadata.get("matched_catalog_title", ""),
+                "matched_catalog_score": metadata.get("matched_catalog_score", 0),
+                "matched_catalog_reason": metadata.get("matched_catalog_reason", ""),
             },
             "saved_at": current.get("saved_at") or time.time(),
             "updated_at": time.time(),
@@ -240,6 +244,10 @@ class OfflineLibrary:
             "epic_catalog_item_id",
             "epic_namespace",
             "epic_app_name",
+            "matched_catalog_slug",
+            "matched_catalog_title",
+            "matched_catalog_score",
+            "matched_catalog_reason",
         ):
             if key in data:
                 user[key] = data[key]
@@ -318,8 +326,13 @@ class OfflineLibrary:
         referenced = set()
         for entry in self.state["games"].values():
             game = entry.get("game", {})
+            user = entry.get("user", {})
             for key in ("cover_cached", "thumbnail_cached"):
                 value = game.get(key, "")
+                if value.startswith("/api/offline/media/"):
+                    referenced.add(value.rsplit("/", 1)[-1])
+            for key in ("artwork_path", "manual_artwork_path"):
+                value = user.get(key, "")
                 if value.startswith("/api/offline/media/"):
                     referenced.add(value.rsplit("/", 1)[-1])
             for shot in game.get("screenshots", []):

@@ -13,7 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
-- Latest stable release: `v0.3.0`
+- Latest stable release: `v0.3.1`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation

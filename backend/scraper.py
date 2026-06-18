@@ -428,41 +428,45 @@ def start_cover_hydration(limit: int = 36, slugs: list[str] | None = None) -> di
     return get_cover_hydration_status()
 
 
-def hydrate_visible_artwork(slugs: list[str], limit: int = 24) -> dict:
+def hydrate_visible_artwork(slugs: list[str], limit: int = 8) -> dict:
     """Fetch artwork for the currently visible gallery page and return it."""
     clean_slugs = []
     for slug in slugs or []:
         value = str(slug or "").strip()
         if value and value not in clean_slugs:
             clean_slugs.append(value)
-    clean_slugs = clean_slugs[: max(1, min(36, int(limit or 24)))]
+    clean_slugs = clean_slugs[: max(1, min(12, int(limit or 8)))]
     if not clean_slugs:
         return {"artwork": {}}
 
     index = _get_cached_az_index()
     by_slug = {game.get("slug"): game for game in index if game.get("slug")}
     results: dict[str, str] = {}
+    meta: dict[str, dict] = {}
 
-    def _load(slug: str) -> tuple[str, str]:
+    def _load(slug: str) -> tuple[str, str, str]:
         game = by_slug.get(slug) or {}
         cached = game.get("thumbnail") or game.get("cover")
         if cached:
             if _is_cached_media(cached):
-                return slug, cached
-            return slug, _cache_gallery_image(slug, cached)
+                return slug, cached, "cached"
+            return slug, _cache_gallery_image(slug, cached), "cached-source"
         cover = _get_page_cover_only(slug)
-        return slug, _cache_gallery_image(slug, cover) if cover else ""
+        return slug, _cache_gallery_image(slug, cover) if cover else "", "source-page" if cover else "missing"
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(clean_slugs))) as executor:
-        for slug, cover in executor.map(_load, clean_slugs):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(3, len(clean_slugs))) as executor:
+        for slug, cover, source in executor.map(_load, clean_slugs):
             if cover:
                 results[slug] = cover
+                meta[slug] = {"source": source, "cached": _is_cached_media(cover)}
                 if slug in by_slug:
                     by_slug[slug]["thumbnail"] = cover
+                else:
+                    _update_cached_index_artwork(slug, cover)
 
     if results and index:
         cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
-    return {"artwork": results}
+    return {"artwork": results, "meta": meta}
 
 def get_library_index_status() -> dict:
     cached_progress = cache.get(AZ_INDEX_PROGRESS_KEY) or {}
@@ -478,39 +482,131 @@ def get_library_index_status() -> dict:
 def _image_url(img) -> str:
     if not img:
         return ""
-    for attr in ("data-src", "data-lazy-src", "src", "data-original"):
+    for attr in ("data-src", "data-lazy-src", "data-original", "data-full-url", "data-large-file", "data-medium-file", "src"):
         value = img.get(attr, "")
         if value:
             return value
-    srcset = img.get("srcset", "")
+    srcset = img.get("data-srcset", "") or img.get("srcset", "")
     if srcset:
-        return srcset.split(",", 1)[0].strip().split(" ", 1)[0]
+        candidates = [part.strip().split(" ", 1)[0] for part in srcset.split(",") if part.strip()]
+        if candidates:
+            return candidates[-1]
     return ""
 
 
 def _is_site_logo(url: str, alt: str = "") -> bool:
     value = f"{url} {alt}".lower()
-    blocked = ("cropped-icon", "fitgirl", "logo", "avatar", "favicon", "blank", "placeholder")
+    blocked = (
+        "cropped-icon",
+        "fitgirl",
+        "logo",
+        "avatar",
+        "favicon",
+        "blank",
+        "placeholder",
+        "spacer",
+        "loader",
+        "transparent",
+        "gravatar",
+    )
     return not url or any(token in value for token in blocked)
 
 
+def _image_candidate_score(url: str, img=None, source: str = "content") -> int:
+    if not url or _is_site_logo(url, img.get("alt", "") if img else ""):
+        return -100
+    parsed = requests.utils.urlparse(url)
+    path = parsed.path.lower()
+    if path and not re.search(r"\.(jpe?g|png|webp|gif)$", path):
+        return -15
+    text = " ".join([
+        source,
+        path,
+        img.get("alt", "") if img else "",
+        " ".join(img.get("class", [])) if img and isinstance(img.get("class"), list) else "",
+        img.get("title", "") if img else "",
+    ]).lower()
+    score = 0
+    if source == "meta":
+        score += 75
+    if source == "linked-image":
+        score += 35
+    if any(token in text for token in ("cover", "poster", "box", "vertical", "portrait", "game-box", "featured")):
+        score += 45
+    if any(token in text for token in ("screenshot", "screen", "gallery", "thumb")):
+        score += 12
+    if any(token in text for token in ("button", "banner", "repack", "setup", "download")):
+        score -= 20
+    try:
+        width = int(str(img.get("width") or "0").strip() or 0) if img else 0
+        height = int(str(img.get("height") or "0").strip() or 0) if img else 0
+        if width >= 250 and height >= 250:
+            score += 20
+        if height > width:
+            score += 18
+        if width > height * 2:
+            score -= 12
+    except (TypeError, ValueError):
+        pass
+    return score
+
+
 def _best_page_image(soup, content) -> str:
+    candidates: list[tuple[int, int, str]] = []
+    order = 0
+
     for selector in (
         'meta[property="og:image"]',
+        'meta[property="og:image:secure_url"]',
         'meta[name="twitter:image"]',
         'meta[property="twitter:image"]',
     ):
         meta = soup.select_one(selector) if soup else None
         url = meta.get("content", "") if meta else ""
         if url and not _is_site_logo(url):
-            return url
+            candidates.append((_image_candidate_score(url, None, "meta"), order, urljoin(BASE_URL, url)))
+            order += 1
     if not content:
-        return ""
+        candidates.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+        return candidates[0][2] if candidates else ""
+
     for img in content.select("img"):
         url = _image_url(img)
         if not _is_site_logo(url, img.get("alt", "")):
-            return url
-    return ""
+            candidates.append((_image_candidate_score(url, img, "content"), order, urljoin(BASE_URL, url)))
+            order += 1
+        parent = img.find_parent("a")
+        href = parent.get("href", "") if parent else ""
+        if href and re.search(r"\.(jpe?g|png|webp|gif)(?:[?#].*)?$", href, re.I) and not _is_site_logo(href, img.get("alt", "")):
+            candidates.append((_image_candidate_score(href, img, "linked-image"), order, urljoin(BASE_URL, href)))
+            order += 1
+
+    seen = set()
+    unique = []
+    for score, idx, url in candidates:
+        key = url.split("?", 1)[0]
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append((score, idx, url))
+    unique.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+    return unique[0][2] if unique else ""
+
+
+def _update_cached_index_artwork(slug: str, image: str) -> bool:
+    if not slug or not image:
+        return False
+    index = _get_cached_az_index()
+    if not index:
+        return False
+    changed = False
+    for game in index:
+        if game.get("slug") == slug and not (game.get("thumbnail") or game.get("cover")):
+            game["thumbnail"] = image
+            changed = True
+    if changed:
+        cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
+    return changed
 
 
 def _fetch(url: str) -> BeautifulSoup:
@@ -941,6 +1037,10 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
     cover = ""
     if content:
         cover = _best_page_image(soup, content)
+        if cover:
+            cached_cover = _cache_gallery_image(slug, cover)
+            _update_cached_index_artwork(slug, cached_cover)
+            cover = cached_cover
 
     # Sizes
     sizes = _extract_size_info(content_html)

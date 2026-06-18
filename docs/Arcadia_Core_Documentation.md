@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.0
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.1
 
 ## Project Overview
 
@@ -52,9 +52,12 @@ The current planning source of truth is
 - `v0.1.6` shipped the UI polish and packaging identity release.
 - `v0.2.0` shipped the Own & Play MVP and is stable after user testing.
 - `v0.2.1` shipped Smart Relink & Executable Detection.
-- `v0.3.0` is the current identity and polish release with Arcadia-branded
-  naming, preset themes, theme-safe SVG interface icons, and cleaned My Library
-  layout language.
+- `v0.3.0` shipped the identity and polish release with Arcadia-branded naming,
+  preset themes, theme-safe SVG interface icons, and cleaned My Library layout
+  language.
+- `v0.3.1` is the current artwork reliability patch with stronger source-page
+  artwork extraction, better Arcadia catalog title matching, and permanent My
+  Library artwork caching.
 - Later `v0.3.x` releases remain planned for optional soundtrack experience,
   collections, journal, save management, dashboards, and advanced filters.
 - `v0.4.x` is planned for Discovery & Source Intelligence.
@@ -161,7 +164,7 @@ For My Library imports, Arcadia also resolves platform and local artwork:
 - Local-only games can use manual artwork selected from game details.
 - Manual artwork is copied into Arcadia app data so cards remain stable even if
   the original image is moved.
-- Game details show the current artwork source: Steam, Epic, Arcadia cache,
+- Game details show the current artwork source: Steam, Epic, Arcadia Catalog,
   Manual, or Placeholder.
 
 ## My Library Removal

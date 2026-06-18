@@ -29,6 +29,13 @@ ERROR_ALREADY_EXISTS = 183
 APP_USER_MODEL_ID = "OKALI.ArcadiaCore"
 _instance_mutex = None
 
+TITLE_BAR_THEMES = {
+    "dark-mode": {"caption": 0x00100D0B, "text": 0x00F4F7FB, "border": 0x00211E1B, "dark": True},
+    "light-mode": {"caption": 0x00FBF7F4, "text": 0x00201814, "border": 0x00DDD6D1, "dark": False},
+    "theme-neon-red": {"caption": 0x00100A0A, "text": 0x00F7F5F2, "border": 0x00231F80, "dark": True},
+    "theme-electric-blue": {"caption": 0x001B1007, "text": 0x00F8F5F0, "border": 0x00A86214, "dark": True},
+}
+
 
 def set_windows_app_user_model_id():
     if sys.platform != "win32":
@@ -37,6 +44,72 @@ def set_windows_app_user_model_id():
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
     except Exception:
         pass
+
+
+def _coerce_hwnd(value) -> int:
+    if not value:
+        return 0
+    if isinstance(value, int):
+        return value
+    for method in ("ToInt64", "ToInt32"):
+        try:
+            fn = getattr(value, method, None)
+            if fn:
+                return int(fn())
+        except Exception:
+            pass
+    try:
+        return int(value)
+    except Exception:
+        return 0
+
+
+def _window_hwnd(window=None) -> int:
+    if sys.platform != "win32":
+        return 0
+    candidates = []
+    if window:
+        candidates.append(window)
+        candidates.append(getattr(window, "native", None))
+        candidates.append(getattr(window, "gui", None))
+    try:
+        active = webview.windows[0] if webview.windows else None
+        if active:
+            candidates.extend([active, getattr(active, "native", None), getattr(active, "gui", None)])
+    except Exception:
+        pass
+    for candidate in candidates:
+        if not candidate:
+            continue
+        for attr in ("Handle", "handle", "hwnd", "HWND"):
+            hwnd = _coerce_hwnd(getattr(candidate, attr, None))
+            if hwnd:
+                return hwnd
+    try:
+        return int(ctypes.windll.user32.FindWindowW(None, WINDOW_TITLE) or 0)
+    except Exception:
+        return 0
+
+
+def apply_windows_title_bar_theme(theme: str = "dark-mode", window=None) -> bool:
+    """Best-effort native Windows title bar color sync for Arcadia themes."""
+    if sys.platform != "win32":
+        return False
+    hwnd = _window_hwnd(window)
+    if not hwnd:
+        return False
+    colors = TITLE_BAR_THEMES.get(theme) or TITLE_BAR_THEMES["dark-mode"]
+    try:
+        dwm = ctypes.windll.dwmapi
+        dark_value = ctypes.c_int(1 if colors["dark"] else 0)
+        for attr in (20, 19):
+            dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(dark_value), ctypes.sizeof(dark_value))
+        for attr, key in ((35, "caption"), (36, "text"), (34, "border")):
+            color = ctypes.c_int(int(colors[key]))
+            dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(color), ctypes.sizeof(color))
+        return True
+    except Exception:
+        return False
 
 
 class TrayController:
@@ -167,6 +240,10 @@ tray = TrayController()
 
 
 class NativeBridge:
+    def set_window_theme(self, theme: str = "dark-mode"):
+        """Sync the native Windows title bar with the active Arcadia theme."""
+        return apply_windows_title_bar_theme(theme, tray.window)
+
     def choose_folder(self, initial_dir: str = ""):
         """Open the native Windows folder picker for frontend path fields."""
         try:
@@ -441,6 +518,7 @@ def main():
         )
         window.events.closing += tray.close_to_tray
         tray.start(window)
+        threading.Timer(1.0, lambda: apply_windows_title_bar_theme("dark-mode", window)).start()
 
         clipboard_thread = threading.Thread(target=clipboard_monitor_loop, args=(window,), daemon=True)
         clipboard_thread.start()
