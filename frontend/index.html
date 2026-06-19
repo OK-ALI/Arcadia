@@ -116,10 +116,12 @@
                 </div>
                 <div class="header-filters">
                     <div class="theme-picker" id="theme-picker">
-                        <button class="theme-toggle-btn" id="btn-theme-toggle" title="Choose theme" aria-label="Choose theme" aria-expanded="false" aria-haspopup="menu">
-                            <span class="arc-icon icon-theme" aria-hidden="true"></span>
+                        <button class="theme-toggle-btn" id="btn-theme-toggle" title="App settings" aria-label="App settings" aria-expanded="false" aria-haspopup="menu">
+                            <span class="arc-icon icon-settings" aria-hidden="true"></span>
                         </button>
                         <div class="theme-menu" id="theme-menu" role="menu" aria-label="Theme presets">
+                            <button type="button" class="theme-menu-item" id="btn-app-updates" role="menuitem"><i class="fa-solid fa-rotate"></i> App Updates</button>
+                            <div class="theme-menu-divider" aria-hidden="true"></div>
                             <button type="button" class="theme-menu-item" data-theme-option="dark-mode" role="menuitem"><span class="arc-icon icon-dark" aria-hidden="true"></span> Arcadia Dark</button>
                             <button type="button" class="theme-menu-item" data-theme-option="light-mode" role="menuitem"><span class="arc-icon icon-light" aria-hidden="true"></span> Arcadia Light</button>
                             <button type="button" class="theme-menu-item" data-theme-option="theme-ember" role="menuitem"><span class="arc-icon icon-color-palette" aria-hidden="true"></span> Ember</button>
@@ -148,6 +150,10 @@
                             </label>
                         </div>
                     </div>
+                    <button class="update-pill" id="btn-update-pill" title="Arcadia update available" aria-label="Arcadia update available">
+                        <i class="fa-solid fa-circle-arrow-up"></i>
+                        <span>Update Available</span>
+                    </button>
                     <label class="compat-toggle" title="Show only games that match this PC">
                         <input type="checkbox" id="toggle-compatibility">
                         <span class="toggle-switch" aria-hidden="true"><span class="slider round"></span></span>

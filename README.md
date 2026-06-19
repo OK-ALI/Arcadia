@@ -13,7 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
-- Latest stable release: `v0.3.2`
+- Latest stable release: `v0.3.3`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation
@@ -43,11 +43,11 @@ available:
 - Official game, publisher, and Steam links are shown only when confidence is
   strong enough.
 - Dynamic Windows system detection for CPU, RAM, GPU list, and VRAM.
-- Compatibility badges based on available game requirements:
+- Compatibility badges based on one resolved game requirements source:
   - Compatible
   - Min Specs
   - Below Specs
-  - Unknown Specs
+  - Specs Unavailable
   - Checking Specs
 - Compatible Specs Only keeps Checking Specs visible briefly, then hides final
   Below Specs and Specs Unavailable entries with a clear notice.
@@ -66,6 +66,10 @@ available:
   preparation flow when libtorrent can parse them.
 - Browser extension ZIP is served by Arcadia and packaged with production
   builds for manual Chrome/Edge unpacked installation.
+- In-app update checks use GitHub Releases to notify users when a newer stable
+  Arcadia installer is available.
+- Smarter title matching protects sequel numbers and uses guarded token matching
+  for catalog artwork, specs, and platform metadata.
 - Custom download folder selection through a native Windows folder picker.
 - Prepared torrent downloads honor the per-download save folder selected in the
   file-selection modal, even when the global default download folder is

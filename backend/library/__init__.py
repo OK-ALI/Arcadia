@@ -1,0 +1,2 @@
+"""My Library compatibility package."""
+

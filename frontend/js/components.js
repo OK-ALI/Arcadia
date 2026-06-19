@@ -115,7 +115,7 @@ const Components = {
         if (!hasRamRequirement && !hasGpuRequirement) {
             return {
                 status: 'unknown',
-                label: reqStatus === 'unavailable' ? 'Specs Unavailable' : 'Unknown Specs',
+                label: 'Specs Unavailable',
                 notes: ['No hardware requirements found'],
                 ram: { user: userRam || 0, min: 0, rec: 0 },
                 gpu: { user: window.userSpecs.gpu || 'Unknown GPU', required: 'N/A', status: 'unknown' }
@@ -475,7 +475,7 @@ const Components = {
                 <div class="compatibility-details-panel">
                     <div class="comp-panel-header">
                         <div class="comp-panel-title"><i class="fa-solid fa-laptop-code text-pink"></i> Hardware Compatibility Check</div>
-                        <div class="comp-status-badge ${comp?.status || 'unknown'}">${this.escape(comp?.label || 'Unknown Specs')}</div>
+                        <div class="comp-status-badge ${comp?.status || 'unknown'}">${this.escape(comp?.label || 'Specs Unavailable')}</div>
                     </div>
                     <div class="comp-source-line">
                         <span>Source: ${this.escape(reqs.requirements_source || 'Arcadia')}</span>

@@ -123,6 +123,22 @@ const API = {
         });
     },
 
+    async getAppVersion() {
+        return this._request('/api/app/version');
+    },
+
+    async checkForUpdates(force = false) {
+        return this._request(`/api/app/update-check${force ? '?force=1' : ''}`);
+    },
+
+    async downloadUpdate() {
+        return this._request('/api/app/update-download', { method: 'POST' });
+    },
+
+    async launchUpdateInstaller() {
+        return this._request('/api/app/update-launch-installer', { method: 'POST' });
+    },
+
     async confirmDownload(payload) {
         return this._request('/api/torrent/confirm', {
             method: 'POST',

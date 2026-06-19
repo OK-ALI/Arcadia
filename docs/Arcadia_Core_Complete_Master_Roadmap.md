@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.3.2
-**Latest Stable:** v0.3.2
+**Status:** Current as of v0.3.3
+**Latest Stable:** v0.3.3
 
 ---
 
@@ -40,7 +40,8 @@ v0.2.2 - Start Menu Import + Hover Library Cards Shipped and stable
 v0.2.3 - Start Menu Shortcut + Hover Fixes   Shipped and stable
 v0.3.0 - UI Identity, Naming, Icons & Themes Shipped and stable
 v0.3.1 - Reliable Catalog Artwork & Matching Shipped and stable
-v0.3.2 - Theme Polish, Specs Coverage & Reliability Current
+v0.3.2 - Theme Polish, Specs Coverage & Reliability Shipped and stable
+v0.3.3 - Structured Backend, Updates & Specs Trust Current
 v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
@@ -358,7 +359,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: v0.3.2 current; later v0.3.x releases planned.
+Status: v0.3.3 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -369,9 +370,10 @@ Planned split:
 v0.3.0 - UI Identity, Naming, Icons & Preset Themes
 v0.3.1 - Reliable Catalog Artwork & Library Matching
 v0.3.2 - Theme Polish, Specs Coverage & Reliability
-v0.3.3 - Optional Soundtrack Experience
-v0.3.4 - Collections & Journal Foundation
-v0.3.5 - Save Management & Personal Dashboard
+v0.3.3 - Structured Backend, Updates & Specs Trust
+v0.3.4 - Optional Soundtrack Experience
+v0.3.5 - Collections & Journal Foundation
+v0.3.6 - Save Management & Personal Dashboard
 ```
 
 ## v0.3.0 UI Identity, Naming, Icons And Preset Themes
@@ -412,7 +414,7 @@ v0.3.5 - Save Management & Personal Dashboard
 
 ## v0.3.2 Theme Polish, Specs Coverage And Reliability
 
-Status: current stable.
+Status: shipped and stable.
 
 Goal: make the current interface and trust systems feel more dependable before
 adding new personalization features.
@@ -513,6 +515,120 @@ adding new personalization features.
   - `downloads`.
   - `tabs`.
   - local Arcadia host permission.
+
+## v0.3.3 Structured Backend, Updates And Specs Trust
+
+Status: current stable.
+
+Goal: improve maintainability and trust before larger personalization features.
+This release starts the backend package split, adds GitHub release awareness,
+centralizes title/spec matching, and fixes old browser download replay from the
+extension.
+
+### Backend Structure
+
+- Add feature packages under `backend/`:
+  - `app_update`.
+  - `catalog`.
+  - `downloads`.
+  - `library`.
+  - `news_sources`.
+  - `system_info`.
+- Keep `server.py` as route wiring.
+- Use compatibility imports while older modules migrate gradually.
+- Keep new v0.3.3 logic in the appropriate package instead of adding more
+  weight to top-level backend files.
+
+### Update Source
+
+- Use GitHub Releases as the public update source.
+- Check the latest stable release from `OK-ALI/Arcadia`.
+- Compare the installed app version against the latest release tag.
+- Ignore drafts and prereleases unless a future setting explicitly enables
+  preview channels.
+- Cache the last update check result locally to avoid repeated network calls.
+
+### Header Update Indicator
+
+- Add an `Update Available` pill in the top-right header near the theme/settings
+  controls only when a newer stable version exists.
+- Keep the header quiet when Arcadia is current.
+- Use a compact download/update icon so it does not crowd the search bar or
+  Compatible Specs Only toggle.
+- Show a tooltip with the latest version and release date.
+
+### Update Modal
+
+Clicking the update pill opens a focused update modal showing:
+
+- Current installed version.
+- Latest available version.
+- Release title.
+- Release notes summary.
+- Asset size when available.
+- Buttons:
+  - Check Again.
+  - Download Update.
+  - Install & Restart.
+  - Later.
+
+### Settings App Updates Section
+
+- Add an App Updates area for manual control from the top controls menu.
+- Show:
+  - Current version.
+  - Latest checked version.
+  - Last checked time.
+  - Update channel, stable-only for v0.3.3.
+- Add controls:
+  - Check Again.
+  - Download Update.
+  - Install & Restart.
+
+### Download And Install Flow
+
+- Download `ArcadiaCoreSetup.exe` from the latest GitHub release asset.
+- Save the installer into Arcadia app data.
+- Verify the downloaded file exists and has a reasonable size before launching.
+- Ask for confirmation before starting the installer.
+- Launch the installer and let it handle replacing the installed app.
+- Keep a fallback link to the GitHub release if download or launch fails.
+
+### Safety And UX
+
+- Never install silently in v0.3.3.
+- Never auto-download without user action.
+- Do not interrupt active downloads without warning.
+- If downloads are active, tell the user to pause/finish them before updating.
+- Keep release notes short inside Arcadia, with a link to the full GitHub
+  release.
+- Handle offline mode gracefully with a small `Could not check updates` message
+  only when the user manually asks.
+
+### Smarter Title And Specs Matching
+
+- Add a shared title matcher for specs, artwork, catalog, Steam, Epic, and local
+  library matching.
+- Normalize trademarks, edition labels, DLC/bonus text, repack/source labels,
+  platform labels, punctuation, and version/build text.
+- Use guarded token scoring so unique title words help confidence while common
+  franchise words are weak.
+- Protect sequel numbers, so `TEKKEN 8` cannot match `TEKKEN 7`.
+- Treat close candidate conflicts as uncertain instead of applying specs or
+  artwork automatically.
+- Resolve requirements in one backend pipeline and return only one final specs
+  result to the UI.
+- Use source page requirements first, then Steam, then PCGamingWiki when title
+  confidence is strong enough.
+
+### Extension Replay Fix
+
+- Record extension startup time and current-session download IDs.
+- Ignore browser download records that started before extension load.
+- Ignore completed, interrupted, cancelled, or history-restored records.
+- Allow `onChanged` and filename capture only for download IDs first seen by
+  `onCreated` in the current extension session.
+- Preserve repeated capture for fresh user downloads.
 
 ## Naming And Product Language
 

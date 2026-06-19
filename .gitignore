@@ -4,6 +4,7 @@ __pycache__/
 *.so
 venv/
 .venv/
+.venv-broken/
 .env
 cache.json
 data/

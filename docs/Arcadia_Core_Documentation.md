@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.2
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.3
 
 ## Project Overview
 
@@ -58,10 +58,13 @@ The current planning source of truth is
 - `v0.3.1` shipped the artwork reliability patch with stronger source-page
   artwork extraction, better Arcadia catalog title matching, and permanent My
   Library artwork caching.
-- `v0.3.2` is the current polish and trust release, focused on theme
+- `v0.3.2` shipped the polish and trust release, focused on theme
   consistency, Compatible Specs Only coverage, collapsed sidebar download
   progress, My Library grid controls, stricter catalog matching, and browser
   extension capture reliability.
+- `v0.3.3` is the current maintainability and trust release, adding structured
+  backend packages, in-app update checks, smarter title/spec matching, one
+  resolved specs result, and an extension old-download replay fix.
 - Later `v0.3.x` releases remain planned for optional soundtrack experience,
   collections, journal, save management, dashboards, and advanced filters.
 - `v0.4.x` is planned for Discovery & Source Intelligence.
@@ -103,6 +106,7 @@ The current planning source of truth is
 - PyInstaller for Windows app distribution
 - Inno Setup for installer creation
 - GitHub Releases for public installer delivery
+- In-app update checks using GitHub Releases as the stable update source
 
 ## Application Architecture
 
@@ -120,6 +124,18 @@ Arcadia Core uses a local desktop architecture:
 
 This structure keeps the UI flexible while still allowing native desktop
 behavior where it matters.
+
+The backend is being organized into feature packages so new work does not keep
+growing large top-level files:
+
+- `backend/app_update` for GitHub release checks and installer flow.
+- `backend/catalog` for source catalog logic, title matching, and requirements
+  resolution.
+- `backend/downloads` for downloader and capture code as it migrates.
+- `backend/library` for My Library, artwork, launch, and import code as it
+  migrates.
+- `backend/news_sources` for news aggregation.
+- `backend/system_info` for PC specs and compatibility helpers.
 
 ## Main Features
 
@@ -218,13 +234,13 @@ Badge states:
   recommended level.
 - **Below Specs:** System appears below a known minimum requirement.
 - **Checking Specs:** Requirements are still being fetched for the visible page.
-- **Specs Unavailable / Unknown Specs:** Requirements could not be found or
+- **Specs Unavailable:** Requirements could not be found or
   compared accurately after available sources were checked.
 
-The current filter relies on available source and Steam-derived requirements.
-The planned v0.3.2 improvement will keep Checking Specs results visible while
-hydration runs, then hide final Below Specs and Specs Unavailable results once
-Arcadia has exhausted trusted requirement sources.
+The current filter relies on one resolved requirement source selected by the
+backend. It keeps Checking Specs results visible while hydration runs, then hides
+final Below Specs and Specs Unavailable results once Arcadia has exhausted
+trusted requirement sources.
 
 ## News System
 
@@ -358,7 +374,7 @@ The UI is designed around a gaming hub identity:
 - Arcadia red/orange accent colors.
 - Arcadia Dark default theme.
 - Arcadia Light theme.
-- Current v0.3.2 themes:
+- Current themes:
   - Arcadia Dark.
   - Arcadia Light.
   - Ember, replacing Neon Red with a warmer graphite/red-orange gaming style.

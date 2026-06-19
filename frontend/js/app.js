@@ -47,7 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadSettingsDirty: false,
         libraryGridDensity: 'auto',
         libraryGridSize: 204,
-        hiddenUnavailableSpecs: 0
+        hiddenUnavailableSpecs: 0,
+        updateInfo: null,
+        updateChecking: false
     };
 
     window.userSpecs = {
@@ -100,6 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
         themeToggle: document.getElementById('btn-theme-toggle'),
         themePicker: document.getElementById('theme-picker'),
         themeMenu: document.getElementById('theme-menu'),
+        btnAppUpdates: document.getElementById('btn-app-updates'),
+        btnUpdatePill: document.getElementById('btn-update-pill'),
         themeBackgroundIntensity: document.getElementById('theme-background-intensity'),
         themeMotionMode: document.getElementById('theme-motion-mode'),
         toggleCompatibility: document.getElementById('toggle-compatibility'),
@@ -381,6 +385,146 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function formatSpeed(bytes) {
         return `${formatBytes(bytes)}/s`;
+    }
+
+    function formatUpdateTime(value) {
+        const timestamp = Number(value || 0);
+        if (!timestamp) return 'Never';
+        try {
+            return new Date(timestamp * 1000).toLocaleString();
+        } catch (err) {
+            return 'Unknown';
+        }
+    }
+
+    function formatReleaseNotesPreview(text) {
+        return String(text || '')
+            .split('\n')
+            .map(line => line
+                .replace(/^#{1,6}\s*/, '')
+                .replace(/^\s*[-*]\s+/, '• ')
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/`([^`]+)`/g, '$1')
+                .trim())
+            .filter(Boolean)
+            .slice(0, 10)
+            .join('\n');
+    }
+
+    function updateUpdatePill(info = state.updateInfo) {
+        if (!elements.btnUpdatePill) return;
+        const available = !!(info && info.update_available);
+        elements.btnUpdatePill.classList.toggle('active', available);
+        elements.btnUpdatePill.style.display = available ? 'inline-flex' : 'none';
+        if (available) {
+            elements.btnUpdatePill.title = `Arcadia Core v${info.latest_version} is available`;
+        }
+    }
+
+    function updateSummaryHTML(info) {
+        const hasUpdate = !!info.update_available;
+        const notesText = hasUpdate
+            ? formatReleaseNotesPreview(info.release_notes || '')
+            : 'No updates available. Arcadia Core is already on the newest stable version available to this installation.';
+        const releaseNotes = escapeHTML(notesText).replace(/\n/g, '<br>');
+        const error = info.error ? `<div class="modal-alert-warning"><i class="fa-solid fa-triangle-exclamation"></i><span>${escapeHTML(info.error)}</span></div>` : '';
+        const latestText = info.latest_version && info.latest_version !== info.current_version
+            ? `Published stable v${escapeHTML(info.latest_version)}`
+            : 'No updates available';
+        const status = hasUpdate
+            ? `<strong class="text-green">v${escapeHTML(info.latest_version || '')} available</strong>`
+            : `<strong>${latestText}</strong>`;
+        const installerText = hasUpdate
+            ? (info.downloaded ? 'Downloaded' : (info.asset?.name || 'Not downloaded'))
+            : 'Not needed';
+        return `
+            <div class="update-modal">
+                <h2 class="modal-title"><i class="fa-solid fa-circle-arrow-up text-pink"></i> App Updates</h2>
+                ${error}
+                <div class="capture-summary update-summary">
+                    <div><span>Current</span><strong>v${escapeHTML(info.current_version || 'Unknown')}</strong></div>
+                    <div><span>Latest</span>${status}</div>
+                    <div><span>Last Checked</span><strong>${escapeHTML(formatUpdateTime(info.last_checked_at))}</strong></div>
+                    <div><span>Installer</span><strong>${escapeHTML(installerText)}</strong></div>
+                </div>
+                <div class="update-notes">
+                    <span>Release Notes</span>
+                    <p>${releaseNotes || 'No update notes available.'}</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btn-update-check-now"><i class="fa-solid fa-rotate"></i> Check Again</button>
+                    <button class="btn btn-primary" id="btn-update-download" ${info.update_available && !info.downloaded ? '' : 'disabled'}><i class="fa-solid fa-download"></i> Download Update</button>
+                    <button class="btn btn-success" id="btn-update-install" ${info.downloaded ? '' : 'disabled'}><i class="fa-solid fa-power-off"></i> Install & Restart</button>
+                    <button class="btn btn-secondary" id="btn-update-later">Later</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async function refreshUpdateInfo(force = false, showToast = false) {
+        if (state.updateChecking) return state.updateInfo;
+        state.updateChecking = true;
+        try {
+            const info = await API.checkForUpdates(force);
+            state.updateInfo = info;
+            updateUpdatePill(info);
+            if (showToast) {
+                Components.showToast(info.update_available ? `Arcadia Core v${info.latest_version} is available.` : 'Arcadia is up to date.', info.update_available ? 'success' : 'info');
+            }
+            return info;
+        } catch (err) {
+            if (showToast) Components.showToast(`Update check failed: ${err.message}`, 'error');
+            return state.updateInfo;
+        } finally {
+            state.updateChecking = false;
+        }
+    }
+
+    async function showUpdateModal(force = false) {
+        elements.modalContentBody.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>Checking Arcadia updates...</p></div>';
+        elements.gameModal.classList.add('active');
+        const info = await refreshUpdateInfo(force, false) || {};
+        elements.modalContentBody.innerHTML = updateSummaryHTML(info);
+
+        document.getElementById('btn-update-later')?.addEventListener('click', () => {
+            elements.gameModal.classList.remove('active');
+        });
+        document.getElementById('btn-update-check-now')?.addEventListener('click', () => showUpdateModal(true));
+        document.getElementById('btn-update-download')?.addEventListener('click', async e => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading...';
+            try {
+                state.updateInfo = await API.downloadUpdate();
+                Components.showToast('Update installer downloaded.', 'success');
+                await showUpdateModal(false);
+            } catch (err) {
+                Components.showToast(`Update download failed: ${err.message}`, 'error');
+                await showUpdateModal(false);
+            }
+        });
+        document.getElementById('btn-update-install')?.addEventListener('click', async e => {
+            const active = (state.lastDownloadData?.downloads || []).some(item => ['downloading', 'queued', 'metadata', 'checking', 'paused'].includes(item.status || ''));
+            if (active) {
+                const ok = await showConfirmDialog({
+                    title: 'Install Arcadia update?',
+                    message: 'Arcadia has active or paused downloads. Installing the update will close and restart the app. Continue?',
+                    confirmText: 'Install Update'
+                });
+                if (!ok) return;
+            }
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Launching...';
+            try {
+                await API.launchUpdateInstaller();
+                Components.showToast('Installer launched. Complete setup to restart Arcadia.', 'success');
+            } catch (err) {
+                Components.showToast(`Could not launch installer: ${err.message}`, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-power-off"></i> Install & Restart';
+            }
+        });
     }
 
     function captureTypeLabel(type) {
@@ -1954,7 +2098,14 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.themeMenu?.addEventListener('click', e => {
             const item = e.target.closest('.theme-menu-item');
             const swatch = e.target.closest('.theme-swatch');
+            if (e.target.closest('#btn-app-updates')) {
+                elements.themePicker?.classList.remove('open');
+                elements.themeToggle?.setAttribute('aria-expanded', 'false');
+                showUpdateModal(true);
+                return;
+            }
             if (item) {
+                if (!item.dataset.themeOption) return;
                 applyTheme(item.dataset.themeOption);
                 elements.themePicker?.classList.remove('open');
                 elements.themeToggle?.setAttribute('aria-expanded', 'false');
@@ -2293,6 +2444,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.sidebar.classList.toggle('collapsed', collapsed);
             localStorage.setItem(STORAGE.sidebarCollapsed, collapsed ? '1' : '0');
         });
+        elements.btnUpdatePill?.addEventListener('click', () => showUpdateModal(false));
     }
 
     function initSidebar() {
@@ -2313,6 +2465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDiagnostics();
     startPingMonitor();
     startDownloadsPolling();
+    refreshUpdateInfo(false, false);
 });
 
 

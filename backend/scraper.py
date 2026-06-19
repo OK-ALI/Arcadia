@@ -16,6 +16,8 @@ import time
 
 from backend.config import BASE_URL, DATA_DIR, HEADERS, REQUEST_TIMEOUT, CACHE_TTL, CACHE_TTL_LONG
 from backend import cache
+from backend.catalog import requirements_service
+from backend.catalog.title_matcher import compare_titles, normalize_title, title_tokens
 from backend.official_sources import resolve_official_links
 
 AZ_INDEX_CACHE_KEY = "arcadia_az_game_index"
@@ -58,6 +60,7 @@ def _clean_title(title: str) -> str:
 
 
 def _normalize_match_title(title: str) -> str:
+    return normalize_title(title)
     title = re.sub(r"\([^)]*\)|\[[^]]*\]", " ", title or "")
     title = re.sub(
         r"(?i)\b(build|v\d[\w.\-+]*|multi\d+|dlc|bonus|bonus(es)?|repack|deluxe|ultimate|edition|complete|digital|gold|goty|remaster(ed)?|remake|enhanced|definitive)\b",
@@ -71,11 +74,13 @@ def _normalize_match_title(title: str) -> str:
 
 
 def _match_tokens(title: str) -> set[str]:
+    return set(title_tokens(title))
     noise = {"a", "an", "and", "the", "of", "for", "with", "edition", "game"}
     return {token for token in _normalize_match_title(title).split() if token and token not in noise}
 
 
 def _title_confidence(source: str, candidate: str) -> int:
+    return compare_titles(source, candidate).score
     source_norm = _normalize_match_title(source)
     candidate_norm = _normalize_match_title(candidate)
     if not source_norm or not candidate_norm:
@@ -105,6 +110,7 @@ def _title_confidence(source: str, candidate: str) -> int:
 
 
 def _requirements_with_meta(reqs: dict | None, source: str, confidence: str = "high", status: str = "available") -> dict:
+    return requirements_service.requirements_with_meta(reqs, source, confidence, status)
     value = dict(reqs or {})
     value["requirements_source"] = source
     value["requirements_confidence"] = confidence
@@ -746,6 +752,7 @@ def _extract_req_value(text: str, names: tuple[str, ...]) -> str:
 
 
 def _parse_requirements_text(text: str) -> dict:
+    return requirements_service.parse_requirements_text(text)
     reqs = {"ram_min": 0, "ram_rec": 0, "space": 0, "cpu": "", "gpu": ""}
     if not text:
         return reqs
@@ -772,6 +779,7 @@ def _parse_requirements_text(text: str) -> dict:
 
 @cache.cached(ttl=CACHE_TTL_LONG)
 def _fetch_steam_requirements(title: str, steam_page: str = "") -> dict:
+    return requirements_service.fetch_steam_requirements(title, steam_page)
     """Fetch Steam PC requirements only when the store title matches confidently."""
     normalized = _normalize_match_title(title)
     if not normalized:
@@ -827,6 +835,7 @@ def _fetch_steam_requirements(title: str, steam_page: str = "") -> dict:
 
 @cache.cached(ttl=CACHE_TTL_LONG)
 def _fetch_pcgamingwiki_requirements(title: str) -> dict:
+    return requirements_service.fetch_pcgamingwiki_requirements(title)
     """Best-effort no-key PCGamingWiki requirements fallback for confident title matches."""
     normalized = _normalize_match_title(title)
     if not normalized:
@@ -881,6 +890,7 @@ def _fetch_pcgamingwiki_requirements(title: str) -> dict:
 
 
 def _display_requirements(game: dict | None = None) -> dict:
+    return requirements_service.display_requirements(game)
     reqs = dict((game or {}).get("requirements") or {})
     has_real = any([
         int(reqs.get("ram_min") or 0) > 0,
@@ -911,14 +921,11 @@ def hydrate_requirements(slugs: list[str], limit: int = 24) -> dict:
 
     def _load(slug: str) -> tuple[str, dict]:
         details = get_game_details(slug) or {}
-        reqs = details.get("requirements") or {}
-        display = _display_requirements({"requirements": reqs})
-        if display.get("pending"):
-            wiki_reqs = _fetch_pcgamingwiki_requirements(details.get("title") or slug)
-            if wiki_reqs:
-                display = wiki_reqs
-        if display.get("pending"):
-            display = _requirements_with_meta({}, "Arcadia", "low", "unavailable")
+        display = requirements_service.resolve_requirements(
+            details.get("title") or slug,
+            details.get("requirements") or {},
+            details.get("steam_page", ""),
+        )
         return slug, display
 
     if clean_slugs:
@@ -1343,39 +1350,13 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
         }
     }
     result.update(resolve_official_links(result))
-    source_reqs = result.get("requirements") or {}
-    has_real_reqs = any([
-        source_reqs.get("ram_min"),
-        source_reqs.get("ram_rec"),
-        source_reqs.get("cpu"),
-        source_reqs.get("gpu"),
-    ])
-    if not has_real_reqs or not source_reqs.get("gpu"):
-        steam_reqs = _fetch_steam_requirements(title, result.get("steam_page", ""))
-        if steam_reqs:
-            result["requirements"] = {
-                **source_reqs,
-                **{k: v for k, v in steam_reqs.items() if k in {"ram_min", "ram_rec", "space", "cpu", "gpu"} and v},
-                "requirements_source": steam_reqs.get("requirements_source", "Steam"),
-                "requirements_confidence": steam_reqs.get("requirements_confidence", "high"),
-                "requirements_status": steam_reqs.get("requirements_status", "available"),
-                "requirements_checked_at": steam_reqs.get("requirements_checked_at", int(time.time())),
-            }
-            if steam_reqs.get("steam_page") and not result.get("steam_page"):
-                result["steam_page"] = steam_reqs["steam_page"]
-        else:
-            wiki_reqs = _fetch_pcgamingwiki_requirements(title)
-            if wiki_reqs:
-                result["requirements"] = {
-                    **source_reqs,
-                    **{k: v for k, v in wiki_reqs.items() if k in {"ram_min", "ram_rec", "space", "cpu", "gpu"} and v},
-                    "requirements_source": wiki_reqs.get("requirements_source", "PCGamingWiki"),
-                    "requirements_confidence": wiki_reqs.get("requirements_confidence", "medium"),
-                    "requirements_status": wiki_reqs.get("requirements_status", "available"),
-                    "requirements_checked_at": wiki_reqs.get("requirements_checked_at", int(time.time())),
-                }
-            elif not has_real_reqs:
-                result["requirements"] = _requirements_with_meta(source_reqs, "Arcadia", "low", "unavailable")
+    result["requirements"] = requirements_service.resolve_requirements(
+        title,
+        result.get("requirements") or {},
+        result.get("steam_page", ""),
+    )
+    if result["requirements"].get("steam_page") and not result.get("steam_page"):
+        result["steam_page"] = result["requirements"]["steam_page"]
 
     # --- Game Updates ---
     updates = {"instructions": "", "links": []}

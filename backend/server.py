@@ -11,6 +11,7 @@ from typing import Callable
 
 from backend.config import ASSETS_DIR, DATA_DIR, FRONTEND_DIR, HOST, PORT
 from backend import scraper, cache as app_cache, system, news, library_service, start_menu_importer, artwork_service
+from backend.app_update import update_service
 from backend.downloader import manager as downloader_manager
 from backend.download_capture import parse_bool, probe_url, validate_capture_url
 from backend.offline_library import library as offline_library
@@ -55,6 +56,48 @@ def api_app_focus():
         if _focus_callback:
             return jsonify({"success": bool(_focus_callback(url))})
         return jsonify({"success": False, "message": "Focus callback not ready"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/app/version")
+def api_app_version():
+    """Return the installed Arcadia app version."""
+    return jsonify({"version": update_service.current_version()})
+
+
+@app.route("/api/app/update-check")
+def api_app_update_check():
+    """Check GitHub Releases for a newer stable Arcadia build."""
+    try:
+        force = parse_bool(request.args.get("force"))
+        return jsonify(update_service.check_for_updates(force=force))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/app/update-download", methods=["POST"])
+def api_app_update_download():
+    """Download the latest stable installer into Arcadia app data."""
+    try:
+        result = update_service.download_update()
+        status = 400 if result.get("error") else 200
+        return jsonify(result), status
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/app/update-launch-installer", methods=["POST"])
+def api_app_update_launch_installer():
+    """Launch a downloaded installer after user confirmation."""
+    try:
+        active = [
+            item for item in downloader_manager.state.get("downloads", [])
+            if item.get("status") in {"downloading", "queued", "metadata", "checking", "paused"}
+        ]
+        result = update_service.launch_installer(active_downloads=len(active))
+        status = 400 if result.get("error") else 200
+        return jsonify(result), status
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

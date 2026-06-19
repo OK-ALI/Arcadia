@@ -29,8 +29,19 @@ const INTERCEPT_HOSTS = [
 const LOCAL_CAPTURE_ENDPOINT = 'http://127.0.0.1:5000/api/app/focus';
 const CAPTURED_DOWNLOAD_IDS_LIMIT = 200;
 const CAPTURED_DOWNLOAD_URLS_LIMIT = 200;
+const EXTENSION_START_TIME = Date.now();
+const STARTUP_HISTORY_GRACE_MS = 5000;
+const createdDownloadIds = new Set();
 const capturedDownloadIds = new Set();
 const capturedDownloadUrls = new Map();
+
+function rememberCreatedDownload(id) {
+    if (id === undefined || id === null) return;
+    createdDownloadIds.add(id);
+    while (createdDownloadIds.size > CAPTURED_DOWNLOAD_IDS_LIMIT) {
+        createdDownloadIds.delete(createdDownloadIds.values().next().value);
+    }
+}
 
 function rememberCapturedDownload(id) {
     if (id === undefined || id === null) return;
@@ -42,6 +53,34 @@ function rememberCapturedDownload(id) {
 
 function wasCaptured(id) {
     return capturedDownloadIds.has(id);
+}
+
+function wasCreatedThisSession(id) {
+    return createdDownloadIds.has(id);
+}
+
+function downloadStartMs(item) {
+    const value = item && item.startTime ? Date.parse(item.startTime) : NaN;
+    return Number.isFinite(value) ? value : 0;
+}
+
+function isFreshSessionDownload(item, phase) {
+    if (!item || item.id === undefined || item.id === null) return false;
+    const state = String(item.state || '').toLowerCase();
+    if (['complete', 'interrupted', 'cancelled', 'canceled'].includes(state)) {
+        return false;
+    }
+    const startMs = downloadStartMs(item);
+    if (startMs && startMs + 1000 < EXTENSION_START_TIME) {
+        return false;
+    }
+    if (phase !== 'created' && !wasCreatedThisSession(item.id)) {
+        return false;
+    }
+    if (phase !== 'created' && Date.now() - EXTENSION_START_TIME < STARTUP_HISTORY_GRACE_MS && startMs && startMs < EXTENSION_START_TIME) {
+        return false;
+    }
+    return true;
 }
 
 function normalizeCaptureUrl(item) {
@@ -117,6 +156,10 @@ function captureDownload(item, phase) {
         return false;
     }
 
+    if (!isFreshSessionDownload(item, phase)) {
+        return false;
+    }
+
     if (!shouldIntercept(item)) {
         return false;
     }
@@ -154,6 +197,7 @@ function buildCapturePayload(item, phase) {
 
 // Capture as early as possible so repeated downloads do not fall through to the browser.
 chrome.downloads.onCreated.addListener((item) => {
+    rememberCreatedDownload(item.id);
     captureDownload(item, 'created');
 });
 
@@ -171,7 +215,7 @@ chrome.downloads.onChanged.addListener((delta) => {
             console.warn("Arcadia Extension: Download lookup warning:", chrome.runtime.lastError.message);
             return;
         }
-        if (items && items[0]) {
+        if (items && items[0] && wasCreatedThisSession(delta.id)) {
             captureDownload(items[0], 'changed');
         }
     });
@@ -179,7 +223,9 @@ chrome.downloads.onChanged.addListener((delta) => {
 
 // Keep filename determination as a fallback for redirects where the final filename reveals the file type.
 chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
-    captureDownload(item, 'filename');
+    if (wasCreatedThisSession(item.id)) {
+        captureDownload(item, 'filename');
+    }
     suggest();
 });
 
