@@ -110,6 +110,9 @@ def _public_state(update: dict[str, Any] | None = None, *, error: str = "") -> d
     state.setdefault("downloaded", False)
     state.setdefault("installer_path", "")
     state.setdefault("last_checked_at", 0)
+    if not state.get("update_available"):
+        state["downloaded"] = False
+        state["installer_path"] = ""
     if error:
         state["error"] = error
     return state
@@ -150,7 +153,12 @@ def check_for_updates(force: bool = False) -> dict[str, Any]:
             "error": "",
         }
         existing_path = state.get("installer_path") or ""
-        update["downloaded"] = bool(existing_path and os.path.exists(existing_path) and state.get("latest_version") == latest_version)
+        update["downloaded"] = bool(
+            update_available
+            and existing_path
+            and os.path.exists(existing_path)
+            and state.get("latest_version") == latest_version
+        )
         update["installer_path"] = existing_path if update["downloaded"] else ""
         _write_state(update)
         return _public_state(update)
@@ -190,6 +198,8 @@ def download_update() -> dict[str, Any]:
 
 def launch_installer(active_downloads: int = 0) -> dict[str, Any]:
     state = _public_state()
+    if not state.get("update_available"):
+        return _public_state(state, error="No newer Arcadia update is available to install.")
     installer_path = state.get("installer_path") or ""
     if not installer_path or not os.path.exists(installer_path):
         return _public_state(state, error="Update installer has not been downloaded yet.")

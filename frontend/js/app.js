@@ -410,18 +410,91 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function formatReleaseNotesPreview(text) {
-        return String(text || '')
-            .split('\n')
-            .map(line => line
-                .replace(/^#{1,6}\s*/, '')
-                .replace(/^\s*[-*]\s+/, '• ')
-                .replace(/\*\*([^*]+)\*\*/g, '$1')
-                .replace(/`([^`]+)`/g, '$1')
-                .trim())
-            .filter(Boolean)
-            .slice(0, 10)
-            .join('\n');
+    function renderReleaseNotesInline(value) {
+        return escapeHTML(value)
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    }
+
+    function renderReleaseNotesHTML(text, hasUpdate) {
+        if (!hasUpdate) {
+            return `
+                <div class="update-status-note">
+                    <h3>No updates available</h3>
+                    <p>Arcadia Core is already on the newest stable version available to this installation.</p>
+                </div>
+            `;
+        }
+
+        const source = String(text || '').replace(/\r\n/g, '\n').trim();
+        if (!source) {
+            return `
+                <div class="update-status-note">
+                    <h3>Update available</h3>
+                    <p>No release notes were provided for this update.</p>
+                </div>
+            `;
+        }
+
+        const blocks = [];
+        let listItems = [];
+        let paragraphLines = [];
+        let inFence = false;
+
+        const flushParagraph = () => {
+            if (!paragraphLines.length) return;
+            blocks.push(`<p>${renderReleaseNotesInline(paragraphLines.join(' '))}</p>`);
+            paragraphLines = [];
+        };
+        const flushList = () => {
+            if (!listItems.length) return;
+            blocks.push(`<ul>${listItems.join('')}</ul>`);
+            listItems = [];
+        };
+
+        source.split('\n').slice(0, 160).forEach(rawLine => {
+            const line = rawLine.trim();
+            if (line.startsWith('```')) {
+                flushParagraph();
+                flushList();
+                inFence = !inFence;
+                return;
+            }
+            if (inFence) return;
+            if (!line) {
+                flushParagraph();
+                flushList();
+                return;
+            }
+
+            const heading = line.match(/^(#{1,6})\s+(.+)$/);
+            if (heading) {
+                flushParagraph();
+                flushList();
+                const level = blocks.length ? 4 : 3;
+                blocks.push(`<h${level}>${renderReleaseNotesInline(heading[2])}</h${level}>`);
+                return;
+            }
+
+            const bullet = line.match(/^[-*]\s+(.+)$/);
+            if (bullet) {
+                flushParagraph();
+                listItems.push(`<li>${renderReleaseNotesInline(bullet[1])}</li>`);
+                return;
+            }
+
+            paragraphLines.push(line);
+        });
+
+        flushParagraph();
+        flushList();
+
+        return blocks.join('') || `
+            <div class="update-status-note">
+                <h3>Update available</h3>
+                <p>No release notes were provided for this update.</p>
+            </div>
+        `;
     }
 
     function updateUpdatePill(info = state.updateInfo) {
@@ -437,22 +510,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateSummaryHTML(info) {
         const hasUpdate = !!info.update_available;
-        const notesText = hasUpdate
-            ? formatReleaseNotesPreview(info.release_notes || '')
-            : 'No updates available. Arcadia Core is already on the newest stable version available to this installation.';
-        const releaseNotes = escapeHTML(notesText).replace(/\n/g, '<br>');
+        const downloaded = hasUpdate && !!info.downloaded;
+        const canDownload = hasUpdate && !downloaded;
+        const canInstall = hasUpdate && downloaded;
+        const releaseNotes = renderReleaseNotesHTML(info.release_notes || '', hasUpdate);
         const error = info.error ? `<div class="modal-alert-warning"><i class="fa-solid fa-triangle-exclamation"></i><span>${escapeHTML(info.error)}</span></div>` : '';
         const latestText = info.latest_version && info.latest_version !== info.current_version
             ? `Published stable v${escapeHTML(info.latest_version)}`
             : 'No updates available';
         const status = hasUpdate
             ? `<strong class="text-green">v${escapeHTML(info.latest_version || '')} available</strong>`
-            : `<strong>${latestText}</strong>`;
+            : `<strong class="text-green">${latestText}</strong>`;
         const installerText = hasUpdate
-            ? (info.downloaded ? 'Downloaded' : (info.asset?.name || 'Not downloaded'))
+            ? (downloaded ? 'Ready to install' : (info.asset?.name || 'Not downloaded'))
             : 'Not needed';
+        const releaseLink = hasUpdate && info.release_url
+            ? `<a href="${escapeHTML(info.release_url)}" target="_blank" rel="noopener noreferrer">Open release</a>`
+            : '';
+        const downloadDisabled = canDownload ? '' : 'disabled aria-disabled="true"';
+        const installDisabled = canInstall ? '' : 'disabled aria-disabled="true"';
+        const downloadTitle = canDownload ? 'Download update installer' : (downloaded ? 'Update installer is already downloaded' : 'No update available to download');
+        const installTitle = canInstall ? 'Install downloaded update and restart Arcadia' : 'Download a newer update before installing';
         return `
-            <div class="update-modal">
+            <div class="update-modal ${hasUpdate ? 'has-update' : 'is-current'}">
                 <h2 class="modal-title"><i class="fa-solid fa-circle-arrow-up text-pink"></i> App Updates</h2>
                 ${error}
                 <div class="capture-summary update-summary">
@@ -461,14 +541,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div><span>Last Checked</span><strong>${escapeHTML(formatUpdateTime(info.last_checked_at))}</strong></div>
                     <div><span>Installer</span><strong>${escapeHTML(installerText)}</strong></div>
                 </div>
-                <div class="update-notes">
-                    <span>Release Notes</span>
-                    <p>${releaseNotes || 'No update notes available.'}</p>
+                <div class="update-notes ${hasUpdate ? 'has-release' : 'is-current'}">
+                    <div class="update-notes-header">
+                        <span>${hasUpdate ? 'Release Notes' : 'Update Status'}</span>
+                        ${releaseLink}
+                    </div>
+                    <div class="update-notes-body">${releaseNotes}</div>
                 </div>
                 <div class="modal-actions">
                     <button class="btn btn-secondary" id="btn-update-check-now"><i class="fa-solid fa-rotate"></i> Check Again</button>
-                    <button class="btn btn-primary" id="btn-update-download" ${info.update_available && !info.downloaded ? '' : 'disabled'}><i class="fa-solid fa-download"></i> Download Update</button>
-                    <button class="btn btn-success" id="btn-update-install" ${info.downloaded ? '' : 'disabled'}><i class="fa-solid fa-power-off"></i> Install & Restart</button>
+                    <button class="btn btn-primary" id="btn-update-download" title="${escapeHTML(downloadTitle)}" ${downloadDisabled}><i class="fa-solid fa-download"></i> Download Update</button>
+                    <button class="btn btn-success" id="btn-update-install" title="${escapeHTML(installTitle)}" ${installDisabled}><i class="fa-solid fa-power-off"></i> Install & Restart</button>
                     <button class="btn btn-secondary" id="btn-update-later">Later</button>
                 </div>
             </div>
@@ -506,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-update-check-now')?.addEventListener('click', () => showUpdateModal(true));
         document.getElementById('btn-update-download')?.addEventListener('click', async e => {
             const btn = e.currentTarget;
+            if (btn.disabled) return;
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading...';
             try {
@@ -518,6 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         document.getElementById('btn-update-install')?.addEventListener('click', async e => {
+            if (e.currentTarget.disabled) return;
             const active = (state.lastDownloadData?.downloads || []).some(item => ['downloading', 'queued', 'metadata', 'checking', 'paused'].includes(item.status || ''));
             if (active) {
                 const ok = await showConfirmDialog({
@@ -1229,7 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function hydrateMissingCardArtwork(container, games = [], emptyText = 'No games found.', guard = {}) {
         const expectedQuery = guard.query;
         const expectedPage = guard.page;
-        const limit = Math.max(1, Math.min(12, Number(guard.limit || 8)));
+        const limit = Math.max(1, Math.min(48, Number(guard.limit || 24)));
         try {
             const missingVisibleSlugs = games
                 .filter(game => game.slug && !game.thumbnail && !game.cover)
@@ -1255,7 +1340,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (requestId !== state.galleryRequestId) return;
             await new Promise(resolve => setTimeout(resolve, 450));
             if (requestId !== state.galleryRequestId) return;
-            const result = await hydrateMissingCardArtwork(elements.galleryContainer, games, 'No games match this gallery page yet.', { limit: 8 });
+            const result = await hydrateMissingCardArtwork(elements.galleryContainer, games, 'No games match this gallery page yet.', { limit: 24 });
             if (requestId !== state.galleryRequestId || !result) return;
             state.galleryGames = result.hydrated;
             renderGalleryIndexStatus({ total: state.galleryGames.length, message: 'Gallery ready', done: true, artwork_cached: Object.keys(result.artwork).length });

@@ -590,14 +590,14 @@ def start_cover_hydration(limit: int = 36, slugs: list[str] | None = None) -> di
     return get_cover_hydration_status()
 
 
-def hydrate_visible_artwork(slugs: list[str], limit: int = 8) -> dict:
+def hydrate_visible_artwork(slugs: list[str], limit: int = 24) -> dict:
     """Fetch artwork for the currently visible gallery page and return it."""
     clean_slugs = []
     for slug in slugs or []:
         value = str(slug or "").strip()
         if value and value not in clean_slugs:
             clean_slugs.append(value)
-    clean_slugs = clean_slugs[: max(1, min(12, int(limit or 8)))]
+    clean_slugs = clean_slugs[: max(1, min(48, int(limit or 24)))]
     if not clean_slugs:
         return {"artwork": {}}
 
@@ -616,7 +616,7 @@ def hydrate_visible_artwork(slugs: list[str], limit: int = 8) -> dict:
         cover = _get_page_cover_only(slug)
         return slug, _cache_gallery_image(slug, cover) if cover else "", "source-page" if cover else "missing"
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(3, len(clean_slugs))) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(clean_slugs))) as executor:
         for slug, cover, source in executor.map(_load, clean_slugs):
             if cover:
                 results[slug] = cover

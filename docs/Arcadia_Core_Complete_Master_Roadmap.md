@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.3.3.2
-**Latest Stable:** v0.3.3.2
+**Status:** Current as of v0.3.3.3
+**Latest Stable:** v0.3.3.3
 
 ---
 
@@ -43,7 +43,8 @@ v0.3.1 - Reliable Catalog Artwork & Matching Shipped and stable
 v0.3.2 - Theme Polish, Specs Coverage & Reliability Shipped and stable
 v0.3.3 - Structured Backend, Updates & Specs Trust Shipped and stable
 v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix Shipped and stable
-v0.3.3.2 - Updater & App Settings Menu Hotfix Current
+v0.3.3.2 - Updater & App Settings Menu Hotfix Shipped and stable
+v0.3.3.3 - Visible Gallery Artwork Batch Hotfix Current
 v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
@@ -361,7 +362,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: v0.3.3.2 current; later v0.3.x releases planned.
+Status: v0.3.3.3 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -375,6 +376,7 @@ v0.3.2 - Theme Polish, Specs Coverage & Reliability
 v0.3.3 - Structured Backend, Updates & Specs Trust
 v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix
 v0.3.3.2 - Updater & App Settings Menu Hotfix
+v0.3.3.3 - Visible Gallery Artwork Batch Hotfix
 v0.3.4 - Optional Soundtrack Experience
 v0.3.5 - Collections & Journal Foundation
 v0.3.6 - Save Management & Personal Dashboard
@@ -653,7 +655,7 @@ between app sections.
 
 ## v0.3.3.2 Updater And App Settings Menu Hotfix
 
-Status: current stable hotfix.
+Status: shipped and stable.
 
 Goal: make Arcadia's update controls clearer and make future hotfix detection
 more reliable without using the reserved `v0.3.4` feature slot.
@@ -669,6 +671,27 @@ more reliable without using the reserved `v0.3.4` feature slot.
 - Show an update dot on the App Settings button when a newer version is
   available.
 - Add pop in/out motion and a blurred glass treatment to the App Settings menu.
+
+## v0.3.3.3 Visible Gallery Artwork + Updater Modal Hotfix
+
+Status: current stable hotfix.
+
+Goal: make visible-page artwork hydration cover the full Gallery/Search page
+instead of stopping after the first small batch, and make the App Updates modal
+clearer and safer after the app is already current.
+
+- Hydrate up to 24 visible Gallery cards in one pass, matching the current page
+  size.
+- Allow the backend visible-artwork endpoint to accept full visible page batches
+  instead of clipping requests to 12.
+- Increase visible artwork worker concurrency modestly so full-page hydration
+  finishes faster without starting a full catalog-wide artwork crawl.
+- Keep the existing permanent artwork cache behavior from `v0.3.3.1`.
+- Render update release notes as structured headings, paragraphs, and bullet
+  lists instead of raw markdown text.
+- Clear stale downloaded-installer state when no newer release is available, so
+  `Download Update` and `Install & Restart` stay disabled when Arcadia is
+  already up to date.
 
 ## Naming And Product Language
 
