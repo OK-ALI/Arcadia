@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.3.3
-**Latest Stable:** v0.3.3
+**Status:** Current as of v0.3.3.1
+**Latest Stable:** v0.3.3.1
 
 ---
 
@@ -41,7 +41,8 @@ v0.2.3 - Start Menu Shortcut + Hover Fixes   Shipped and stable
 v0.3.0 - UI Identity, Naming, Icons & Themes Shipped and stable
 v0.3.1 - Reliable Catalog Artwork & Matching Shipped and stable
 v0.3.2 - Theme Polish, Specs Coverage & Reliability Shipped and stable
-v0.3.3 - Structured Backend, Updates & Specs Trust Current
+v0.3.3 - Structured Backend, Updates & Specs Trust Shipped and stable
+v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix Current
 v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
@@ -359,7 +360,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: v0.3.3 current; later v0.3.x releases planned.
+Status: v0.3.3.1 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -371,6 +372,7 @@ v0.3.0 - UI Identity, Naming, Icons & Preset Themes
 v0.3.1 - Reliable Catalog Artwork & Library Matching
 v0.3.2 - Theme Polish, Specs Coverage & Reliability
 v0.3.3 - Structured Backend, Updates & Specs Trust
+v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix
 v0.3.4 - Optional Soundtrack Experience
 v0.3.5 - Collections & Journal Foundation
 v0.3.6 - Save Management & Personal Dashboard
@@ -518,7 +520,7 @@ adding new personalization features.
 
 ## v0.3.3 Structured Backend, Updates And Specs Trust
 
-Status: current stable.
+Status: shipped and stable.
 
 Goal: improve maintainability and trust before larger personalization features.
 This release starts the backend package split, adds GitHub release awareness,
@@ -629,6 +631,23 @@ Clicking the update pill opens a focused update modal showing:
 - Allow `onChanged` and filename capture only for download IDs first seen by
   `onCreated` in the current extension session.
 - Preserve repeated capture for fresh user downloads.
+
+## v0.3.3.1 Gallery Artwork And Specs Cache Hotfix
+
+Status: current stable hotfix.
+
+Goal: keep progressive Gallery/Search artwork and specs hydration from
+restarting or reverting when users change pages, open details, or navigate
+between app sections.
+
+- Store resolved card artwork and specs in a durable per-game metadata cache.
+- Merge cached card metadata into Gallery, Search, and Latest Repacks responses.
+- Backfill card metadata when game details resolves artwork or requirements.
+- Treat `Specs Unavailable` as a final cached state instead of returning it to
+  `Checking Specs`.
+- Add cache write locking so parallel artwork/spec hydration workers do not
+  overwrite each other.
+- Support four-part hotfix versions such as `v0.3.3.1` in the in-app updater.
 
 ## Naming And Product Language
 

@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.3
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.3.1
 
 ## Project Overview
 
@@ -62,9 +62,12 @@ The current planning source of truth is
   consistency, Compatible Specs Only coverage, collapsed sidebar download
   progress, My Library grid controls, stricter catalog matching, and browser
   extension capture reliability.
-- `v0.3.3` is the current maintainability and trust release, adding structured
+- `v0.3.3` shipped the maintainability and trust release, adding structured
   backend packages, in-app update checks, smarter title/spec matching, one
   resolved specs result, and an extension old-download replay fix.
+- `v0.3.3.1` is the current hotfix release, keeping Gallery/Search artwork and
+  specs cache results stable across page changes, detail opens, and app
+  navigation.
 - Later `v0.3.x` releases remain planned for optional soundtrack experience,
   collections, journal, save management, dashboards, and advanced filters.
 - `v0.4.x` is planned for Discovery & Source Intelligence.

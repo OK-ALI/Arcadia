@@ -25,6 +25,7 @@ class Version:
     major: int
     minor: int
     patch: int
+    hotfix: int = 0
 
 
 def current_version() -> str:
@@ -33,10 +34,15 @@ def current_version() -> str:
 
 def _parse_version(value: str) -> Version:
     text = str(value or "").strip().lower().lstrip("v")
-    match = re.search(r"(\d+)\.(\d+)\.(\d+)", text)
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?", text)
     if not match:
         return Version(0, 0, 0)
-    return Version(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    return Version(
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3)),
+        int(match.group(4) or 0),
+    )
 
 
 def _is_newer(latest: str, installed: str = APP_VERSION) -> bool:

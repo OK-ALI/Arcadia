@@ -186,6 +186,9 @@ def api_search():
 
     try:
         results = scraper.search_games(query, page)
+        if isinstance(results, dict) and isinstance(results.get("games"), list):
+            results = dict(results)
+            results["games"] = scraper.prepare_card_games(results["games"], include_requirements=True)
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -198,6 +201,9 @@ def api_latest():
 
     try:
         results = scraper.get_latest_repacks(page)
+        if isinstance(results, dict) and isinstance(results.get("games"), list):
+            results = dict(results)
+            results["games"] = scraper.prepare_card_games(results["games"], include_requirements=True)
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

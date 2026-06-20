@@ -13,7 +13,7 @@ The Windows installer is published from GitHub Releases when a packaged build is
 available:
 
 - Repository: https://github.com/OK-ALI/Arcadia
-- Latest stable release: `v0.3.3`
+- Latest stable release: `v0.3.3.1`
 - Installer filename: `ArcadiaCoreSetup.exe`
 
 ## Documentation
@@ -68,6 +68,8 @@ available:
   builds for manual Chrome/Edge unpacked installation.
 - In-app update checks use GitHub Releases to notify users when a newer stable
   Arcadia installer is available.
+- v0.3.3.1 hotfix keeps Gallery/Search artwork and specs cache results stable
+  across page changes and app navigation.
 - Smarter title matching protects sequel numbers and uses guarded token matching
   for catalog artwork, specs, and platform metadata.
 - Custom download folder selection through a native Windows folder picker.

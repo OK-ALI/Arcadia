@@ -25,6 +25,8 @@ AZ_INDEX_PROGRESS_KEY = "arcadia_az_game_index_progress"
 AZ_INDEX_TTL = 30 * 24 * 60 * 60
 AZ_PAGE_CACHE_PREFIX = "arcadia_az_page"
 AZ_PAGE_TTL = 60 * 60
+GAME_METADATA_OVERRIDES_KEY = "arcadia_game_metadata_overrides"
+GAME_METADATA_OVERRIDES_TTL = AZ_INDEX_TTL
 AZ_REFRESH_INTERVAL = 6 * 60 * 60
 AZ_PAGE_SIZE = 48
 AZ_INDEX_WORKERS = 6
@@ -214,6 +216,113 @@ def _is_cached_media(url: str) -> bool:
     return str(url or "").startswith("/api/offline/media/")
 
 
+def _get_game_metadata_overrides() -> dict:
+    data = cache.get(GAME_METADATA_OVERRIDES_KEY)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_game_metadata_overrides(data: dict):
+    cache.set(GAME_METADATA_OVERRIDES_KEY, data, GAME_METADATA_OVERRIDES_TTL)
+
+
+def _update_cached_index_metadata(slug: str, fields: dict) -> bool:
+    if not slug or not fields:
+        return False
+    index = _normalized_index(_get_cached_az_index())
+    if not index:
+        return False
+    changed = False
+    for game in index:
+        if game.get("slug") != slug:
+            continue
+        for field, value in fields.items():
+            if value not in (None, "") and game.get(field) != value:
+                game[field] = value
+                changed = True
+    if changed:
+        cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
+    return changed
+
+
+def _remember_game_artwork(slug: str, image: str, source: str = "Arcadia Catalog", update_index: bool = True) -> bool:
+    if not slug or not image:
+        return False
+    overrides = _get_game_metadata_overrides()
+    entry = dict(overrides.get(slug) or {})
+    entry["thumbnail"] = image
+    entry["cover"] = image
+    entry["artwork_source"] = source
+    entry["artwork_cached_at"] = int(time.time())
+    overrides[slug] = entry
+    _save_game_metadata_overrides(overrides)
+    if update_index:
+        _update_cached_index_metadata(slug, {"thumbnail": image, "cover": image})
+    return True
+
+
+def _remember_game_requirements(slug: str, reqs: dict, update_index: bool = True) -> bool:
+    if not slug or not isinstance(reqs, dict):
+        return False
+    status = str(reqs.get("requirements_status") or "").lower()
+    if reqs.get("pending") or status == "checking":
+        return False
+    stable_reqs = dict(reqs)
+    stable_reqs.pop("pending", None)
+    overrides = _get_game_metadata_overrides()
+    entry = dict(overrides.get(slug) or {})
+    entry["requirements"] = stable_reqs
+    entry["requirements_cached_at"] = int(time.time())
+    overrides[slug] = entry
+    _save_game_metadata_overrides(overrides)
+    if update_index:
+        _update_cached_index_metadata(slug, {"requirements": stable_reqs})
+    return True
+
+
+def _apply_game_metadata_override(game: dict, overrides: dict | None = None) -> dict:
+    item = dict(game or {})
+    slug = item.get("slug")
+    if not slug:
+        return item
+    entry = (overrides or _get_game_metadata_overrides()).get(slug)
+    if not isinstance(entry, dict):
+        return item
+
+    cached_artwork = entry.get("thumbnail") or entry.get("cover")
+    current_artwork = item.get("thumbnail") or item.get("cover")
+    if cached_artwork and (not current_artwork or _is_cached_media(cached_artwork) or not _is_cached_media(current_artwork)):
+        item["thumbnail"] = cached_artwork
+        item["cover"] = entry.get("cover") or cached_artwork
+        if entry.get("artwork_source"):
+            item["artwork_source"] = entry["artwork_source"]
+
+    cached_requirements = entry.get("requirements")
+    if isinstance(cached_requirements, dict):
+        current_requirements = item.get("requirements") or {}
+        current_status = str(current_requirements.get("requirements_status") or "").lower()
+        if (
+            not requirements_service.has_real_requirements(current_requirements)
+            or current_requirements.get("pending")
+            or current_status in {"", "checking", "unavailable"}
+        ):
+            item["requirements"] = dict(cached_requirements)
+    return item
+
+
+def _merge_game_metadata_overrides(games: list[dict]) -> list[dict]:
+    overrides = _get_game_metadata_overrides()
+    if not overrides:
+        return [dict(game or {}) for game in games]
+    return [_apply_game_metadata_override(game, overrides) for game in games]
+
+
+def prepare_card_games(games: list[dict], include_requirements: bool = False) -> list[dict]:
+    prepared = _merge_game_metadata_overrides(games or [])
+    if include_requirements:
+        prepared = [{**game, "requirements": _display_requirements(game)} for game in prepared]
+    return prepared
+
+
 def _get_page_cover_only(slug: str) -> str:
     """Fetch only the page artwork without doing full detail/requirements work."""
     if not slug:
@@ -257,6 +366,7 @@ def _normalized_index(index: list[dict]) -> list[dict]:
             changed = True
         normalized.append(item)
     normalized.sort(key=_sort_key)
+    normalized = _merge_game_metadata_overrides(normalized)
     if changed:
         cache.set(AZ_INDEX_CACHE_KEY, normalized, AZ_INDEX_TTL)
     return normalized
@@ -461,6 +571,8 @@ def _hydrate_cover_batch(limit: int = 36, slugs: list[str] | None = None):
                 slug, cover = result
                 if cover and slug in by_slug:
                     by_slug[slug]["thumbnail"] = cover
+                    by_slug[slug]["cover"] = cover
+                    _remember_game_artwork(slug, cover, update_index=False)
                     updated += 1
                 _set_cover_progress(processed=processed, updated=updated, message=f"Loaded artwork for {updated} games")
         cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
@@ -489,7 +601,7 @@ def hydrate_visible_artwork(slugs: list[str], limit: int = 8) -> dict:
     if not clean_slugs:
         return {"artwork": {}}
 
-    index = _get_cached_az_index()
+    index = _normalized_index(_get_cached_az_index())
     by_slug = {game.get("slug"): game for game in index if game.get("slug")}
     results: dict[str, str] = {}
     meta: dict[str, dict] = {}
@@ -509,8 +621,10 @@ def hydrate_visible_artwork(slugs: list[str], limit: int = 8) -> dict:
             if cover:
                 results[slug] = cover
                 meta[slug] = {"source": source, "cached": _is_cached_media(cover)}
+                _remember_game_artwork(slug, cover, update_index=False)
                 if slug in by_slug:
                     by_slug[slug]["thumbnail"] = cover
+                    by_slug[slug]["cover"] = cover
                 else:
                     _update_cached_index_artwork(slug, cover)
 
@@ -646,17 +760,8 @@ def _best_page_image(soup, content) -> str:
 def _update_cached_index_artwork(slug: str, image: str) -> bool:
     if not slug or not image:
         return False
-    index = _get_cached_az_index()
-    if not index:
-        return False
-    changed = False
-    for game in index:
-        if game.get("slug") == slug and not (game.get("thumbnail") or game.get("cover")):
-            game["thumbnail"] = image
-            changed = True
-    if changed:
-        cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
-    return changed
+    _remember_game_artwork(slug, image, update_index=False)
+    return _update_cached_index_metadata(slug, {"thumbnail": image, "cover": image})
 
 
 def _fetch(url: str) -> BeautifulSoup:
@@ -915,11 +1020,14 @@ def hydrate_requirements(slugs: list[str], limit: int = 24) -> dict:
         if value and value not in clean_slugs:
             clean_slugs.append(value)
     clean_slugs = clean_slugs[: max(1, min(48, int(limit or 24)))]
-    index = _get_cached_az_index()
+    index = _normalized_index(_get_cached_az_index())
     by_slug = {game.get("slug"): game for game in index if game.get("slug")}
     results = {}
 
     def _load(slug: str) -> tuple[str, dict]:
+        existing = _display_requirements(by_slug.get(slug) or {})
+        if not existing.get("pending"):
+            return slug, existing
         details = get_game_details(slug) or {}
         display = requirements_service.resolve_requirements(
             details.get("title") or slug,
@@ -932,6 +1040,8 @@ def hydrate_requirements(slugs: list[str], limit: int = 24) -> dict:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(clean_slugs))) as executor:
             for slug, reqs in executor.map(_load, clean_slugs):
                 results[slug] = reqs
+                if not reqs.get("pending"):
+                    _remember_game_requirements(slug, reqs, update_index=False)
                 if slug in by_slug and not reqs.get("pending"):
                     by_slug[slug]["requirements"] = reqs
                     if not by_slug[slug].get("thumbnail") and (by_slug[slug].get("cover") or by_slug[slug].get("thumbnail")):
@@ -1049,7 +1159,7 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
     if letter not in valid_letters:
         letter = "all"
 
-    index = _get_cached_az_index()
+    index = _normalized_index(_get_cached_az_index())
     progress = get_library_index_status()
     if not index:
         progress = start_library_index(force=False)
@@ -1064,8 +1174,7 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
             has_next = bool(direct.get("has_next_source"))
         total = len(collected)
         start = (page - 1) * page_size
-        games = collected[start:start + page_size]
-        games = [{**game, "requirements": _display_requirements(game)} for game in games]
+        games = prepare_card_games(collected[start:start + page_size], include_requirements=True)
         return {
             "letter": letter,
             "page": page,
@@ -1091,7 +1200,7 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
                 "page_size": page_size,
                 "total": max(total, page * page_size),
                 "total_pages": max(page + (1 if direct.get("has_next") else 0), 1),
-                "games": [{**game, "requirements": _display_requirements(game)} for game in direct_games[:page_size]],
+                "games": prepare_card_games(direct_games[:page_size], include_requirements=True),
                 "has_next": bool(direct.get("has_next")),
                 "has_prev": page > 1,
                 "indexing": progress,
@@ -1100,8 +1209,7 @@ def get_games_library(letter: str = "all", page: int = 1, page_size: int = AZ_PA
     total_pages = max(1, (total + page_size - 1) // page_size)
     page = min(page, total_pages)
     start = (page - 1) * page_size
-    games = filtered[start:start + page_size]
-    games = [{**game, "requirements": _display_requirements(game)} for game in games]
+    games = prepare_card_games(filtered[start:start + page_size], include_requirements=True)
     return {
         "letter": letter,
         "page": page,
@@ -1355,6 +1463,7 @@ def get_game_details(slug: str, force_refresh: bool = False) -> dict | None:
         result.get("requirements") or {},
         result.get("steam_page", ""),
     )
+    _remember_game_requirements(slug, result["requirements"])
     if result["requirements"].get("steam_page") and not result.get("steam_page"):
         result["steam_page"] = result["requirements"]["steam_page"]
 

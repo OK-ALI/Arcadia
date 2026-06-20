@@ -82,6 +82,13 @@ def display_requirements(game: dict | None = None) -> dict:
         reqs.setdefault("requirements_status", "available")
         reqs.setdefault("requirements_checked_at", int(time.time()))
         return reqs
+    status = str(reqs.get("requirements_status") or "").lower()
+    if status == "unavailable":
+        reqs.pop("pending", None)
+        reqs.setdefault("requirements_source", "Arcadia")
+        reqs.setdefault("requirements_confidence", "low")
+        reqs.setdefault("requirements_checked_at", int(time.time()))
+        return reqs
     return requirements_with_meta({"pending": True}, "Arcadia", "low", "checking")
 
 
@@ -227,4 +234,3 @@ def resolve_requirements(title: str, source_requirements: dict | None = None, st
     if wiki:
         return {**source, **wiki}
     return requirements_with_meta(source, "Arcadia", "low", "unavailable")
-
