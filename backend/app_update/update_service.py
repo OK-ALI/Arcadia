@@ -16,7 +16,7 @@ from backend.config import APP_VERSION, DATA_DIR, GITHUB_REPO, HEADERS, REQUEST_
 
 UPDATE_DIR = os.path.join(DATA_DIR, "updates")
 UPDATE_STATE_FILE = os.path.join(UPDATE_DIR, "update_state.json")
-GITHUB_RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
 INSTALLER_ASSET_NAME = "ArcadiaCoreSetup.exe"
 
 
@@ -47,6 +47,27 @@ def _parse_version(value: str) -> Version:
 
 def _is_newer(latest: str, installed: str = APP_VERSION) -> bool:
     return _parse_version(latest) > _parse_version(installed)
+
+
+def _release_version_text(release: dict[str, Any]) -> str:
+    return str(release.get("tag_name") or release.get("name") or "")
+
+
+def _select_latest_stable_release(payload: Any) -> dict[str, Any]:
+    releases = payload if isinstance(payload, list) else [payload] if isinstance(payload, dict) else []
+    candidates: list[tuple[Version, str, dict[str, Any]]] = []
+    for release in releases:
+        if not isinstance(release, dict) or release.get("prerelease") or release.get("draft"):
+            continue
+        version = _parse_version(_release_version_text(release))
+        if version == Version(0, 0, 0):
+            continue
+        published = str(release.get("published_at") or release.get("created_at") or "")
+        candidates.append((version, published, release))
+    if not candidates:
+        return {}
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return candidates[0][2]
 
 
 def _read_state() -> dict[str, Any]:
@@ -102,18 +123,18 @@ def check_for_updates(force: bool = False) -> dict[str, Any]:
     try:
         response = requests.get(GITHUB_RELEASES_URL, headers={**HEADERS, "Accept": "application/vnd.github+json"}, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
-        release = response.json() or {}
-        if release.get("prerelease") or release.get("draft"):
+        release = _select_latest_stable_release(response.json() or [])
+        if not release:
             update = {
                 "current_version": APP_VERSION,
                 "latest_version": APP_VERSION,
                 "update_available": False,
                 "last_checked_at": now,
-                "message": "Latest GitHub release is not a stable release.",
+                "message": "No stable GitHub release is available.",
             }
             _write_state(update)
             return _public_state(update)
-        tag = str(release.get("tag_name") or release.get("name") or "")
+        tag = _release_version_text(release)
         latest_version = tag.lstrip("v")
         update_available = _is_newer(latest_version)
         asset = _asset_from_release(release)

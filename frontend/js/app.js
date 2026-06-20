@@ -213,6 +213,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return THEME_PRESETS[mapped] ? mapped : 'dark-mode';
     }
 
+    function renderAppSettingsButton(theme = localStorage.getItem(STORAGE.theme) || 'dark-mode') {
+        if (!elements.themeToggle) return;
+        const nextTheme = normalizeTheme(theme);
+        const preset = THEME_PRESETS[nextTheme] || THEME_PRESETS['dark-mode'];
+        const updateAvailable = !!state.updateInfo?.update_available;
+        elements.themeToggle.innerHTML = `<span class="arc-icon icon-settings" aria-hidden="true"></span>`;
+        elements.themeToggle.classList.toggle('has-update', updateAvailable);
+        elements.themeToggle.title = updateAvailable
+            ? `App settings - Arcadia Core v${state.updateInfo.latest_version} is available`
+            : `App settings - ${preset.label}`;
+        elements.themeToggle.setAttribute(
+            'aria-label',
+            updateAvailable
+                ? `App settings. Arcadia Core v${state.updateInfo.latest_version} is available.`
+                : `App settings. Current theme: ${preset.label}.`
+        );
+        elements.themeToggle.setAttribute('data-theme', nextTheme);
+    }
+
     function applyThemePreferences() {
         const accent = ['ember', 'blue', 'green'].includes(localStorage.getItem(STORAGE.themeAccent))
             ? localStorage.getItem(STORAGE.themeAccent)
@@ -235,17 +254,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function applyTheme(theme) {
         const nextTheme = normalizeTheme(theme);
-        const preset = THEME_PRESETS[nextTheme];
         document.body.classList.remove(...Object.keys(THEME_PRESETS), ...Object.keys(THEME_ALIASES));
         document.body.classList.add(nextTheme);
         localStorage.setItem(STORAGE.theme, nextTheme);
 
-        if (elements.themeToggle) {
-            elements.themeToggle.innerHTML = `<span class="arc-icon ${preset.icon}" aria-hidden="true"></span>`;
-            elements.themeToggle.title = `Theme: ${preset.label}`;
-            elements.themeToggle.setAttribute('aria-label', `Choose theme. Current theme: ${preset.label}`);
-            elements.themeToggle.setAttribute('data-theme', nextTheme);
-        }
+        renderAppSettingsButton(nextTheme);
         elements.themeMenu?.querySelectorAll('.theme-menu-item').forEach(item => {
             item.classList.toggle('active', item.dataset.themeOption === nextTheme);
         });
@@ -419,6 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (available) {
             elements.btnUpdatePill.title = `Arcadia Core v${info.latest_version} is available`;
         }
+        renderAppSettingsButton();
     }
 
     function updateSummaryHTML(info) {
@@ -2465,7 +2479,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDiagnostics();
     startPingMonitor();
     startDownloadsPolling();
-    refreshUpdateInfo(false, false);
+    refreshUpdateInfo(true, false);
 });
 
 

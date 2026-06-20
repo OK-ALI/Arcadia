@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.3.3.1
-**Latest Stable:** v0.3.3.1
+**Status:** Current as of v0.3.3.2
+**Latest Stable:** v0.3.3.2
 
 ---
 
@@ -42,7 +42,8 @@ v0.3.0 - UI Identity, Naming, Icons & Themes Shipped and stable
 v0.3.1 - Reliable Catalog Artwork & Matching Shipped and stable
 v0.3.2 - Theme Polish, Specs Coverage & Reliability Shipped and stable
 v0.3.3 - Structured Backend, Updates & Specs Trust Shipped and stable
-v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix Current
+v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix Shipped and stable
+v0.3.3.2 - Updater & App Settings Menu Hotfix Current
 v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
@@ -360,7 +361,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: v0.3.3.1 current; later v0.3.x releases planned.
+Status: v0.3.3.2 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -373,6 +374,7 @@ v0.3.1 - Reliable Catalog Artwork & Library Matching
 v0.3.2 - Theme Polish, Specs Coverage & Reliability
 v0.3.3 - Structured Backend, Updates & Specs Trust
 v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix
+v0.3.3.2 - Updater & App Settings Menu Hotfix
 v0.3.4 - Optional Soundtrack Experience
 v0.3.5 - Collections & Journal Foundation
 v0.3.6 - Save Management & Personal Dashboard
@@ -634,7 +636,7 @@ Clicking the update pill opens a focused update modal showing:
 
 ## v0.3.3.1 Gallery Artwork And Specs Cache Hotfix
 
-Status: current stable hotfix.
+Status: shipped and stable.
 
 Goal: keep progressive Gallery/Search artwork and specs hydration from
 restarting or reverting when users change pages, open details, or navigate
@@ -648,6 +650,25 @@ between app sections.
 - Add cache write locking so parallel artwork/spec hydration workers do not
   overwrite each other.
 - Support four-part hotfix versions such as `v0.3.3.1` in the in-app updater.
+
+## v0.3.3.2 Updater And App Settings Menu Hotfix
+
+Status: current stable hotfix.
+
+Goal: make Arcadia's update controls clearer and make future hotfix detection
+more reliable without using the reserved `v0.3.4` feature slot.
+
+- Select the highest stable GitHub release by parsed version instead of relying
+  only on GitHub's latest-release endpoint.
+- Keep support for four-part hotfix versions such as `v0.3.3.1` and
+  `v0.3.3.2`.
+- Force one fresh update check on app startup so a newly published release is
+  not hidden by the short local update-check cache.
+- Keep the top-right button as an App Settings control instead of a theme-only
+  icon.
+- Show an update dot on the App Settings button when a newer version is
+  available.
+- Add pop in/out motion and a blurred glass treatment to the App Settings menu.
 
 ## Naming And Product Language
 
