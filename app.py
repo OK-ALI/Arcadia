@@ -21,9 +21,10 @@ from PIL import Image, ImageDraw
 import pystray
 
 from backend.config import ASSETS_DIR, DATA_DIR, HOST, PORT, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH
-from backend.server import run_server, set_focus_callback
+from backend.server import run_server, set_focus_callback, set_shutdown_callback
 from backend.downloader import manager as downloader_manager
 from backend.download_capture import validate_capture_url
+from backend.app_update import update_service
 
 ERROR_ALREADY_EXISTS = 183
 APP_USER_MODEL_ID = "OKALI.ArcadiaCore"
@@ -121,6 +122,11 @@ class TrayController:
         self.quit_requested = False
         self.ready = False
         self.status_text = "Downloads: idle"
+        self.update_text = "App Updates"
+        self.update_available = False
+        self.update_latest_version = ""
+        self.last_update_check = 0
+        self.update_badge_visible = False
         self.completed_seen: set[str] = set()
         self.status_thread = None
 
@@ -141,19 +147,27 @@ class TrayController:
             except Exception:
                 pass
 
-    def build_image(self):
+    def build_image(self, update_badge: bool = False):
         candidates = [
             os.path.join(ASSETS_DIR, "icons", "icon.png"),
             os.path.join(ASSETS_DIR, "icon.png"),
             os.path.join(os.path.dirname(__file__), "frontend", "assets", "arcadia-icon.png"),
         ]
+        image = None
         for path in candidates:
             if os.path.exists(path):
-                return Image.open(path).convert("RGBA").resize((64, 64), Image.Resampling.LANCZOS)
-        image = Image.new("RGBA", (64, 64), (10, 10, 12, 255))
-        draw = ImageDraw.Draw(image)
-        draw.rounded_rectangle((8, 8, 56, 56), radius=12, fill=(255, 50, 31, 255))
-        draw.text((24, 19), "A", fill=(255, 255, 255, 255))
+                image = Image.open(path).convert("RGBA").resize((64, 64), Image.Resampling.LANCZOS)
+                break
+        if image is None:
+            image = Image.new("RGBA", (64, 64), (10, 10, 12, 255))
+            draw = ImageDraw.Draw(image)
+            draw.rounded_rectangle((8, 8, 56, 56), radius=12, fill=(255, 50, 31, 255))
+            draw.text((24, 19), "A", fill=(255, 255, 255, 255))
+        if update_badge:
+            draw = ImageDraw.Draw(image)
+            draw.ellipse((39, 4, 62, 27), fill=(6, 10, 8, 235))
+            draw.ellipse((43, 8, 58, 23), fill=(46, 204, 113, 255))
+            draw.ellipse((47, 12, 54, 19), fill=(192, 255, 221, 255))
         return image
 
     def format_bytes(self, value: int | float) -> str:
@@ -168,6 +182,28 @@ class TrayController:
     def status_menu_text(self, item=None):
         return self.status_text
 
+    def update_menu_text(self, item=None):
+        return self.update_text
+
+    def refresh_update_state(self, force: bool = False):
+        now = time.time()
+        if not force and now - self.last_update_check < 1800:
+            return
+        self.last_update_check = now
+        try:
+            info = update_service.check_for_updates(force=force)
+            self.update_available = bool(info.get("update_available"))
+            self.update_latest_version = str(info.get("latest_version") or "")
+            self.update_text = (
+                f"Update Available: v{self.update_latest_version}"
+                if self.update_available and self.update_latest_version
+                else "App Updates"
+            )
+        except Exception:
+            self.update_available = False
+            self.update_latest_version = ""
+            self.update_text = "App Updates"
+
     def summarize_downloads(self, downloads: list[dict]) -> tuple[str, list[dict]]:
         active_states = {"downloading", "queued", "metadata", "checking", "paused"}
         active = [d for d in downloads if d.get("status") in active_states]
@@ -178,19 +214,27 @@ class TrayController:
         speed = sum(int(d.get("download_speed") or 0) for d in active)
         if total > 0:
             pct = min(100, round((done / total) * 100))
-            status = f"Downloads: {pct}% · {self.format_bytes(speed)}/s"
+            status = f"Downloads: {pct}% - {self.format_bytes(speed)}/s"
         else:
-            status = f"Downloads: {len(active)} active · metadata"
+            status = f"Downloads: {len(active)} active - metadata"
         return status, active
 
     def update_status_loop(self):
         while not self.quit_requested:
             try:
+                self.refresh_update_state(force=False)
                 data = downloader_manager.list_status()
                 downloads = data.get("downloads", [])
                 self.status_text, _ = self.summarize_downloads(downloads)
                 if self.icon:
-                    self.icon.title = f"Arcadia Core - {self.status_text}"
+                    update_prefix = f"Update v{self.update_latest_version} available - " if self.update_available and self.update_latest_version else ""
+                    self.icon.title = f"Arcadia Core - {update_prefix}{self.status_text}"
+                    if self.update_available:
+                        self.update_badge_visible = not self.update_badge_visible
+                        self.icon.icon = self.build_image(update_badge=self.update_badge_visible)
+                    elif self.update_badge_visible:
+                        self.update_badge_visible = False
+                        self.icon.icon = self.build_image(update_badge=False)
                     self.icon.update_menu()
                 for item in downloads:
                     info_hash = item.get("info_hash") or item.get("id") or item.get("title", "")
@@ -212,6 +256,15 @@ class TrayController:
             return True
         return False
 
+    def open_app_updates(self, icon=None, item=None):
+        shown = self.show_window()
+        if shown and self.window:
+            try:
+                self.window.evaluate_js("if (window.openArcadiaAppUpdates) window.openArcadiaAppUpdates(true);")
+            except Exception:
+                pass
+        return shown
+
     def quit_app(self, icon=None, item=None):
         self.safe_shutdown()
 
@@ -219,6 +272,7 @@ class TrayController:
         self.window = window
         menu = pystray.Menu(
             pystray.MenuItem(self.status_menu_text, None, enabled=False),
+            pystray.MenuItem(self.update_menu_text, self.open_app_updates),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Show Arcadia", self.show_window, default=True),
             pystray.MenuItem("Quit Arcadia", self.quit_app),
@@ -320,6 +374,15 @@ def request_safe_exit(signum=None, frame=None):
     print("\nArcadia Core is shutting down safely...")
     tray.safe_shutdown()
     raise SystemExit(0)
+
+
+def request_update_shutdown():
+    """Fully stop Arcadia after handing control to the update installer."""
+    print("\nArcadia Core is closing for update installation...")
+    try:
+        tray.safe_shutdown()
+    finally:
+        os._exit(0)
 
 
 from ctypes.wintypes import HANDLE, LPVOID
@@ -507,6 +570,7 @@ def main():
 
     print(f"Server running at http://{HOST}:{PORT}")
     set_focus_callback(handle_focus)
+    set_shutdown_callback(request_update_shutdown)
 
     try:
         window = webview.create_window(

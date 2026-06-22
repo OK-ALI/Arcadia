@@ -93,7 +93,7 @@
             </div>
 
             <div class="sidebar-footer">
-                <div class="connection-status" id="ping-status-indicator">
+                <div class="connection-status" id="ping-status-indicator" data-ping-status>
                     <span class="status-dot offline"></span>
                     <span class="status-text">Checking server...</span>
                 </div>
@@ -115,6 +115,10 @@
                     <button class="clear-search" id="btn-clear-search" title="Clear search" aria-label="Clear search"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="header-filters">
+                    <div class="connection-status header-connection-status" id="header-ping-status-indicator" data-ping-status>
+                        <span class="status-dot offline"></span>
+                        <span class="status-text">Checking...</span>
+                    </div>
                     <div class="theme-picker" id="theme-picker">
                         <button class="theme-toggle-btn" id="btn-theme-toggle" title="App settings" aria-label="App settings" aria-expanded="false" aria-haspopup="menu">
                             <span class="arc-icon icon-settings" aria-hidden="true"></span>

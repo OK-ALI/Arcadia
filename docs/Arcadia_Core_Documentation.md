@@ -74,7 +74,9 @@ The current planning source of truth is
 - `v0.3.3.3` shipped the visible Gallery artwork and updater modal hotfix.
 - `v0.3.3.4` is the current hotfix release, making Gallery specs hydration
   progressive, finalizing unavailable specs, and fixing My Library launch button
-  running-state layout.
+  running-state layout. The replacement build also improves compact update
+  notification layout, adds tray-menu access to App Updates, moves online status
+  into the header, and fully closes Arcadia before installer replacement.
 - Later `v0.3.x` releases remain planned for optional soundtrack experience,
   collections, journal, save management, dashboards, and advanced filters.
 - `v0.4.x` is planned for Discovery & Source Intelligence.

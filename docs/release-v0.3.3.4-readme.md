@@ -16,12 +16,26 @@ state hotfix. It keeps `v0.3.4` reserved for the next planned feature release.
 - Improved Compatible Specs Only hidden-count messaging.
 - Fixed My Library launch/running button temporary state so hover-card actions
   do not briefly overlap while a game is launching.
+- Improved update notification visibility in compact windows with a smaller
+  update pill, a settings-menu update dot, and startup update checks.
+- Added system tray update awareness: the tray icon can show a blinking update
+  badge, and its right-click menu opens Arcadia's App Updates screen.
+- Moved online/offline server status into the main header so it is visible
+  without looking at the bottom of the sidebar.
+- Fixed `Install & Restart` so Arcadia fully exits after launching the update
+  installer, allowing setup to replace app files without a background-process
+  warning.
 
 ## Notes
 
 - This is a patch-only release.
 - No new specs provider, source integration, or soundtrack feature is included.
 - Low-confidence specs matches are still rejected to avoid misleading users.
+- Arcadia browser extension files remain packaged with the app. Users normally
+  do not need to add the extension again after updating Arcadia if their browser
+  is still loading the same unpacked extension folder. If extension files change
+  in a future update, users may need to reload the unpacked extension or restart
+  the browser.
 - Users on `v0.3.3.1`, `v0.3.3.2`, or `v0.3.3.3` should be able to see this
   update inside Arcadia's App Settings update flow.
 

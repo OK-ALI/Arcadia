@@ -185,7 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sysRam: document.getElementById('sys-ram'),
         sysGpu: document.getElementById('sys-gpu'),
         sysDrives: document.getElementById('sys-drives-box'),
-        pingStatus: document.getElementById('ping-status-indicator')
+        pingStatus: document.getElementById('ping-status-indicator'),
+        pingStatuses: document.querySelectorAll('[data-ping-status]')
     };
 
     function readJSON(key, fallback) {
@@ -220,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const updateAvailable = !!state.updateInfo?.update_available;
         elements.themeToggle.innerHTML = `<span class="arc-icon icon-settings" aria-hidden="true"></span>`;
         elements.themeToggle.classList.toggle('has-update', updateAvailable);
+        elements.btnAppUpdates?.classList.toggle('has-update', updateAvailable);
         elements.themeToggle.title = updateAvailable
             ? `App settings - Arcadia Core v${state.updateInfo.latest_version} is available`
             : `App settings - ${preset.label}`;
@@ -501,11 +503,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!elements.btnUpdatePill) return;
         const available = !!(info && info.update_available);
         elements.btnUpdatePill.classList.toggle('active', available);
-        elements.btnUpdatePill.style.display = available ? 'inline-flex' : 'none';
+        elements.btnUpdatePill.hidden = !available;
         if (available) {
             elements.btnUpdatePill.title = `Arcadia Core v${info.latest_version} is available`;
+            elements.btnUpdatePill.setAttribute('aria-label', `Arcadia Core v${info.latest_version} is available`);
         }
         renderAppSettingsButton();
+    }
+
+    function startUpdateMonitor() {
+        refreshUpdateInfo(true, false);
+        setTimeout(() => {
+            if (!state.updateInfo?.update_available) refreshUpdateInfo(true, false);
+        }, 15000);
+        setInterval(() => refreshUpdateInfo(true, false), 30 * 60 * 1000);
     }
 
     function updateSummaryHTML(info) {
@@ -617,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Launching...';
             try {
                 await API.launchUpdateInstaller();
-                Components.showToast('Installer launched. Complete setup to restart Arcadia.', 'success');
+                Components.showToast('Installer launched. Arcadia will close so setup can update files.', 'success');
             } catch (err) {
                 Components.showToast(`Could not launch installer: ${err.message}`, 'error');
                 btn.disabled = false;
@@ -724,6 +735,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    window.openArcadiaAppUpdates = function(force = true) {
+        return showUpdateModal(!!force);
+    };
 
     function updateNavDownloadBadge(downloads = []) {
         if (!elements.navDownloadBadge) return;
@@ -838,14 +853,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function startPingMonitor() {
+        const renderPingStatus = html => {
+            elements.pingStatuses.forEach(item => {
+                item.innerHTML = html;
+            });
+        };
         const checkPing = async () => {
             try {
                 const status = await API.getPingStatus();
-                elements.pingStatus.innerHTML = status.online
+                renderPingStatus(status.online
                     ? `<span class="status-dot online"></span><span class="status-text text-green">Online (${status.latency} ms)</span>`
-                    : '<span class="status-dot offline"></span><span class="status-text text-pink">Offline Mode</span>';
+                    : '<span class="status-dot offline"></span><span class="status-text text-pink">Offline Mode</span>');
             } catch {
-                elements.pingStatus.innerHTML = '<span class="status-dot offline"></span><span class="status-text text-pink">Offline Mode</span>';
+                renderPingStatus('<span class="status-dot offline"></span><span class="status-text text-pink">Offline Mode</span>');
             }
         };
         await checkPing();
@@ -2575,11 +2595,11 @@ document.addEventListener('DOMContentLoaded', () => {
         : (localStorage.getItem(STORAGE.libraryGridDensity) || 'auto');
     applyLibraryGridDensity(savedGridDensity, savedGridSize);
     bindEvents();
+    startUpdateMonitor();
     loadHomepage();
     loadDiagnostics();
     startPingMonitor();
     startDownloadsPolling();
-    refreshUpdateInfo(true, false);
 });
 
 

@@ -712,6 +712,13 @@ whole page, and fix a short-lived My Library running-button overlap.
 - Show clearer Compatible Specs Only hidden-count messaging.
 - Keep Launch, Opening, and Running button markup stable so hover-card actions
   do not overlap or resize during launch.
+- Keep the update pill compact in narrow windows and show update awareness on
+  the App Settings button/menu before the user opens App Updates.
+- Show a tray update badge and add a tray-menu App Updates action that restores
+  Arcadia and opens the update modal.
+- Move online/offline status into the main header for direct visibility.
+- Fully close Arcadia after launching the update installer so setup can replace
+  running files cleanly.
 
 ## Naming And Product Language
 

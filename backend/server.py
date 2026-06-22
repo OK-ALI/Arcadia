@@ -7,6 +7,7 @@ import webbrowser
 from flask import Flask, jsonify, request, send_from_directory, send_file
 import os
 import sys
+import threading
 from typing import Callable
 
 from backend.config import ASSETS_DIR, DATA_DIR, FRONTEND_DIR, HOST, PORT
@@ -17,11 +18,17 @@ from backend.download_capture import parse_bool, probe_url, validate_capture_url
 from backend.offline_library import library as offline_library
 
 _focus_callback: Callable[[str | None], bool] | None = None
+_shutdown_callback: Callable[[], None] | None = None
 
 
 def set_focus_callback(callback: Callable[[str | None], bool] | None):
     global _focus_callback
     _focus_callback = callback
+
+
+def set_shutdown_callback(callback: Callable[[], None] | None):
+    global _shutdown_callback
+    _shutdown_callback = callback
 
 # Flask App Setup
 app = Flask(
@@ -97,6 +104,8 @@ def api_app_update_launch_installer():
         ]
         result = update_service.launch_installer(active_downloads=len(active))
         status = 400 if result.get("error") else 200
+        if status == 200 and result.get("success") and _shutdown_callback:
+            threading.Timer(1.25, _shutdown_callback).start()
         return jsonify(result), status
     except Exception as e:
         return jsonify({"error": str(e)}), 500

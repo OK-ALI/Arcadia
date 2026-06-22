@@ -77,7 +77,10 @@ available:
   and polishes the App Updates modal with safer disabled install actions.
 - v0.3.3.4 hotfix makes Gallery specs checks progressive, finalizes unavailable
   specs instead of leaving cards stuck on Checking Specs, and stabilizes My
-  Library launch/running button layout.
+  Library launch/running button layout. The replacement build also improves
+  compact update-pill layout, adds tray update notification/menu access, moves
+  online status into the header, and fully closes Arcadia before installer
+  replacement.
 - Smarter title matching protects sequel numbers and uses guarded token matching
   for catalog artwork, specs, and platform metadata.
 - Custom download folder selection through a native Windows folder picker.
