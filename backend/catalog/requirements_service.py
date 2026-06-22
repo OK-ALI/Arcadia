@@ -16,6 +16,8 @@ from backend.config import HEADERS, REQUEST_TIMEOUT, CACHE_TTL_LONG
 
 def requirements_with_meta(reqs: dict | None, source: str, confidence: str = "high", status: str = "available", **extra: Any) -> dict:
     value = dict(reqs or {})
+    if status != "checking":
+        value.pop("pending", None)
     value.update({
         "requirements_source": source,
         "requirements_confidence": confidence,

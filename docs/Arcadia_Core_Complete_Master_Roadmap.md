@@ -2,8 +2,8 @@
 ## Master Roadmap
 
 **Platform:** Windows Desktop  
-**Status:** Current as of v0.3.3.3
-**Latest Stable:** v0.3.3.3
+**Status:** Current as of v0.3.3.4
+**Latest Stable:** v0.3.3.4
 
 ---
 
@@ -44,7 +44,8 @@ v0.3.2 - Theme Polish, Specs Coverage & Reliability Shipped and stable
 v0.3.3 - Structured Backend, Updates & Specs Trust Shipped and stable
 v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix Shipped and stable
 v0.3.3.2 - Updater & App Settings Menu Hotfix Shipped and stable
-v0.3.3.3 - Visible Gallery Artwork Batch Hotfix Current
+v0.3.3.3 - Visible Gallery Artwork + Updater Modal Hotfix Shipped and stable
+v0.3.3.4 - Gallery Specs + Launch Button Hotfix Current
 v0.3.x - Personalize & Library Depth         Planned
 v0.4.x - Discovery & Source Intelligence     Planned
 v0.5.x - Download Ecosystem & Hardening      Planned
@@ -197,7 +198,7 @@ v0.2.0 introduced modular Own & Play services:
 
 # v0.2.1 - Smart Relink & Executable Detection
 
-Status: implemented / in testing.
+Status: shipped.
 
 Goal: make manual linking accurate and trustworthy for games already in My
 Library.
@@ -362,7 +363,7 @@ Filter out:
 
 # v0.3.x - Identity, Polish & Personalize
 
-Status: v0.3.3.3 current; later v0.3.x releases planned.
+Status: v0.3.3.4 current; later v0.3.x releases planned.
 
 Goal: make Arcadia feel more professional, coherent, and alive before deeper
 source intelligence and downloader hardening work.
@@ -376,7 +377,8 @@ v0.3.2 - Theme Polish, Specs Coverage & Reliability
 v0.3.3 - Structured Backend, Updates & Specs Trust
 v0.3.3.1 - Gallery Artwork & Specs Cache Hotfix
 v0.3.3.2 - Updater & App Settings Menu Hotfix
-v0.3.3.3 - Visible Gallery Artwork Batch Hotfix
+v0.3.3.3 - Visible Gallery Artwork + Updater Modal Hotfix
+v0.3.3.4 - Gallery Specs + Launch Button Hotfix
 v0.3.4 - Optional Soundtrack Experience
 v0.3.5 - Collections & Journal Foundation
 v0.3.6 - Save Management & Personal Dashboard
@@ -674,7 +676,7 @@ more reliable without using the reserved `v0.3.4` feature slot.
 
 ## v0.3.3.3 Visible Gallery Artwork + Updater Modal Hotfix
 
-Status: current stable hotfix.
+Status: shipped and stable.
 
 Goal: make visible-page artwork hydration cover the full Gallery/Search page
 instead of stopping after the first small batch, and make the App Updates modal
@@ -692,6 +694,24 @@ clearer and safer after the app is already current.
 - Clear stale downloaded-installer state when no newer release is available, so
   `Download Update` and `Install & Restart` stay disabled when Arcadia is
   already up to date.
+
+## v0.3.3.4 Gallery Specs And Launch Button Hotfix
+
+Status: current stable hotfix.
+
+Goal: make visible Gallery specs checks finish reliably without slowing the
+whole page, and fix a short-lived My Library running-button overlap.
+
+- Hydrate pending visible specs progressively in small page-scoped chunks.
+- Let new Gallery pages start their own specs checks even if an older page
+  request is still finishing.
+- Return and cache final `Specs Unavailable` results when no confident source,
+  Steam, or PCGamingWiki requirements can be resolved.
+- Keep strict title matching so low-confidence specs are not applied just to
+  clear a checking badge.
+- Show clearer Compatible Specs Only hidden-count messaging.
+- Keep Launch, Opening, and Running button markup stable so hover-card actions
+  do not overlap or resize during launch.
 
 ## Naming And Product Language
 

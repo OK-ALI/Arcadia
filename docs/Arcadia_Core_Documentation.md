@@ -4,7 +4,7 @@
 **Subtitle:** A Gaming Universe  
 **Platform:** Windows desktop  
 **Repository:** https://github.com/OK-ALI/Arcadia  
-**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.3.3
+**Installer Release:** https://github.com/OK-ALI/Arcadia/releases/tag/v0.3.3.4
 
 ## Project Overview
 
@@ -71,8 +71,10 @@ The current planning source of truth is
 - `v0.3.3.2` shipped the updater hotfix release, improving future in-app update
   detection for four-part hotfix versions and polishing the App Settings menu
   with update awareness, pop motion, and a blurred panel treatment.
-- `v0.3.3.3` is the current hotfix release, hydrating artwork for the full
-  visible Gallery/Search page and polishing the App Updates modal state/layout.
+- `v0.3.3.3` shipped the visible Gallery artwork and updater modal hotfix.
+- `v0.3.3.4` is the current hotfix release, making Gallery specs hydration
+  progressive, finalizing unavailable specs, and fixing My Library launch button
+  running-state layout.
 - Later `v0.3.x` releases remain planned for optional soundtrack experience,
   collections, journal, save management, dashboards, and advanced filters.
 - `v0.4.x` is planned for Discovery & Source Intelligence.

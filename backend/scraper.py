@@ -1023,18 +1023,38 @@ def hydrate_requirements(slugs: list[str], limit: int = 24) -> dict:
     index = _normalized_index(_get_cached_az_index())
     by_slug = {game.get("slug"): game for game in index if game.get("slug")}
     results = {}
+    errors = {}
 
     def _load(slug: str) -> tuple[str, dict]:
-        existing = _display_requirements(by_slug.get(slug) or {})
-        if not existing.get("pending"):
-            return slug, existing
-        details = get_game_details(slug) or {}
-        display = requirements_service.resolve_requirements(
-            details.get("title") or slug,
-            details.get("requirements") or {},
-            details.get("steam_page", ""),
-        )
-        return slug, display
+        try:
+            existing = _display_requirements(by_slug.get(slug) or {})
+            if not existing.get("pending"):
+                return slug, existing
+            details = get_game_details(slug) or {}
+            if not details:
+                return slug, requirements_service.requirements_with_meta(
+                    {},
+                    "Arcadia",
+                    "low",
+                    "unavailable",
+                    match_reason="detail page unavailable",
+                )
+            display = requirements_service.resolve_requirements(
+                details.get("title") or slug,
+                details.get("requirements") or {},
+                details.get("steam_page", ""),
+            )
+            display.pop("pending", None)
+            return slug, display
+        except Exception as exc:
+            errors[slug] = str(exc)
+            return slug, requirements_service.requirements_with_meta(
+                {},
+                "Arcadia",
+                "low",
+                "unavailable",
+                match_reason="requirements lookup failed",
+            )
 
     if clean_slugs:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(clean_slugs))) as executor:
@@ -1049,7 +1069,22 @@ def hydrate_requirements(slugs: list[str], limit: int = 24) -> dict:
         if index:
             cache.set(AZ_INDEX_CACHE_KEY, index, AZ_INDEX_TTL)
 
-    return {"requirements": results}
+    available = len([
+        reqs for reqs in results.values()
+        if str(reqs.get("requirements_status") or "").lower() == "available"
+    ])
+    unavailable = len([
+        reqs for reqs in results.values()
+        if str(reqs.get("requirements_status") or "").lower() == "unavailable"
+    ])
+    return {
+        "requirements": results,
+        "requested": len(clean_slugs),
+        "resolved": len(results),
+        "available": available,
+        "unavailable": unavailable,
+        "errors": errors,
+    }
 
 
 @cache.cached(ttl=CACHE_TTL)

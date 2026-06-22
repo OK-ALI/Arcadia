@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         galleryTotalPages: 1,
         galleryIndexerPoller: null,
         galleryArtworkPoller: null,
-        galleryRequirementsLoading: false,
+        galleryRequirementsRequestId: 0,
         galleryRequestId: 0,
         libraryIndex: {},
         libraryIndexLoaded: false,
@@ -858,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return games.filter(game => {
             const comp = Components.getCompatibility(game.requirements);
             const visible = comp && (['pass', 'minimum', 'checking'].includes(comp.status) || game.requirements?.pending);
-            if (!visible && comp?.status === 'unknown') state.hiddenUnavailableSpecs += 1;
+            if (!visible && ['unknown', 'fail'].includes(comp?.status)) state.hiddenUnavailableSpecs += 1;
             return visible;
         });
     }
@@ -940,14 +940,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!filtered.length) {
             const hasPendingSpecs = state.compatibilityOnly && merged.some(game => game.requirements?.pending);
             const hiddenNotice = state.compatibilityOnly && state.hiddenUnavailableSpecs
-                ? ` ${state.hiddenUnavailableSpecs} games with unavailable specs are hidden.`
+                ? ` ${state.hiddenUnavailableSpecs} games hidden by the specs filter.`
                 : '';
             const text = hasPendingSpecs ? 'Checking accurate system requirements for this page...' : `${emptyText}${hiddenNotice}`;
             container.innerHTML = `<div class="empty-state grid-empty-state"><p>${escapeHTML(text)}</p></div>`;
             return;
         }
         if (state.compatibilityOnly && state.hiddenUnavailableSpecs) {
-            container.insertAdjacentHTML('beforeend', `<div class="compat-filter-notice">${state.hiddenUnavailableSpecs} games with unavailable specs hidden.</div>`);
+            container.insertAdjacentHTML('beforeend', `<div class="compat-filter-notice">${state.hiddenUnavailableSpecs} games hidden by the specs filter.</div>`);
         }
         filtered.forEach(game => {
             const card = Components.createGameCard(game);
@@ -1003,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!button) return;
         button.disabled = true;
         button.classList.add('is-running');
-        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running';
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Opening</span>';
     }
 
     function startLibraryRunningPoller() {
@@ -1350,25 +1350,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function hydrateVisibleGalleryRequirements(games = [], requestId = state.galleryRequestId) {
-        if (state.galleryRequirementsLoading) return;
+        const hydrationId = ++state.galleryRequirementsRequestId;
         const slugs = games
             .filter(game => game.slug && game.requirements?.pending)
             .map(game => game.slug)
             .slice(0, 24);
         if (!slugs.length) return;
-        state.galleryRequirementsLoading = true;
-        try {
-            const data = await API.hydrateLibraryRequirements(slugs, slugs.length);
-            if (requestId !== state.galleryRequestId) return;
-            const requirements = data.requirements || {};
-            state.galleryGames = state.galleryGames.map(game => (
-                requirements[game.slug] ? { ...game, requirements: requirements[game.slug] } : game
-            ));
-            renderCards(elements.galleryContainer, state.galleryGames, 'No compatible games match after checking accurate requirements.');
-        } catch {
-            // Keep pending badges if detailed requirement scraping fails.
-        } finally {
-            state.galleryRequirementsLoading = false;
+        const chunkSize = 8;
+        for (let offset = 0; offset < slugs.length; offset += chunkSize) {
+            if (requestId !== state.galleryRequestId || hydrationId !== state.galleryRequirementsRequestId) return;
+            const chunk = slugs.slice(offset, offset + chunkSize);
+            try {
+                const data = await API.hydrateLibraryRequirements(chunk, chunk.length);
+                if (requestId !== state.galleryRequestId || hydrationId !== state.galleryRequirementsRequestId) return;
+                const requirements = data.requirements || {};
+                state.galleryGames = state.galleryGames.map(game => (
+                    requirements[game.slug] ? { ...game, requirements: requirements[game.slug] } : game
+                ));
+                renderCards(elements.galleryContainer, state.galleryGames, 'No compatible games match after checking accurate requirements.');
+            } catch {
+                if (requestId !== state.galleryRequestId || hydrationId !== state.galleryRequirementsRequestId) return;
+                const fallback = {};
+                chunk.forEach(slug => {
+                    fallback[slug] = {
+                        requirements_source: 'Arcadia',
+                        requirements_confidence: 'low',
+                        requirements_status: 'unavailable',
+                        requirements_checked_at: Math.floor(Date.now() / 1000)
+                    };
+                });
+                state.galleryGames = state.galleryGames.map(game => (
+                    fallback[game.slug] ? { ...game, requirements: fallback[game.slug] } : game
+                ));
+                renderCards(elements.galleryContainer, state.galleryGames, 'No compatible games match after checking accurate requirements.');
+            }
         }
     }
 
